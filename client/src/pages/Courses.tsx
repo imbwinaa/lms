@@ -60,6 +60,7 @@ export default function Courses() {
       <Heading
         eyebrow="Chương trình Đào tạo · Công khai (Public)"
         title="Danh mục Khóa học Toàn trường"
+        description="Tất cả khóa học đang mở của nhà trường. Chọn một khóa học để xem đề cương và bắt đầu học."
         action={
           role !== 'student' && (
             <Button
@@ -153,7 +154,16 @@ export default function Courses() {
                   className="relative h-[120px] overflow-hidden block cursor-pointer"
                   style={{ background: accentBackgrounds[course.accent] ?? (i % 2 ? '#d6e2d8' : '#ead9c9') }}
                 >
-                  <div className="absolute -right-3 -top-8 h-32 w-32 rounded-full border-[20px] border-white/20 transition-transform group-hover:scale-105" />
+                  {course.coverImageUrl ? (
+                    <img
+                      src={course.coverImageUrl}
+                      alt=""
+                      loading="lazy"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="absolute -right-3 -top-8 h-32 w-32 rounded-full border-[20px] border-white/20 transition-transform group-hover:scale-105" />
+                  )}
 
                   {/* Public visibility tag & Category */}
                   <div className="absolute bottom-3 left-4 flex items-center gap-2">

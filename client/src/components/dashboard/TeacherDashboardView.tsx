@@ -35,7 +35,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { accentBackgrounds, Avatar } from '@/components/common';
+import { Avatar } from '@/components/common';
 import { useRole } from '@/contexts/RoleContext';
 import {
   CourseDialog,
@@ -371,9 +371,7 @@ export function TeacherDashboardView() {
 
             {/* Course Cards Grid (Matching reference style) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {teacherCourses.map((course, idx) => {
-                const bgPattern = accentBackgrounds[idx % accentBackgrounds.length];
-
+              {teacherCourses.map(course => {
                 return (
                   <Card
                     key={course.id}
@@ -383,10 +381,7 @@ export function TeacherDashboardView() {
                       {/* Top Banner with Accent & Tags */}
                       <div
                         className="p-4 h-28 relative flex flex-col justify-between"
-                        style={{
-                          background: bgPattern?.gradient || 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          color: bgPattern?.textColor || '#ffffff',
-                        }}
+                        style={{ background: course.coverImageUrl ? `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url("${encodeURI(course.coverImageUrl)}") center / cover` : 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#ffffff' }}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
@@ -438,7 +433,7 @@ export function TeacherDashboardView() {
                           </span>
                           <span className="flex items-center gap-1">
                             <Users size={12} />
-                            {(idx + 2) * 2} học viên
+                            {course.enrolled} học viên
                           </span>
                         </div>
                       </div>
