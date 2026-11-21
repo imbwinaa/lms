@@ -14,13 +14,12 @@ import {
 } from "../db";
 import { findCourse, isEnrolled, loadCourseForWrite } from "../lib/access";
 import { toPublicLearner } from "../lib/auth";
+import { assertSafeUrl } from "../lib/content";
 import { badRequest, conflict, forbidden, notFound, parseOr400 } from "../lib/http";
 import { currentUser, requireRole } from "../middlewares/auth";
 import {
   AutoEnrollLearnersBody,
   AutoEnrollLearnersResponse,
-  CompleteLmsLessonBody,
-  CompleteLmsLessonResponse,
   CreateLmsCourseBody,
   DeleteLmsCourseParams,
   GetLmsCourseParams,
@@ -113,6 +112,7 @@ function formatCourse({ course, instructor }: CourseRow) {
     instructorName: instructor?.name ?? course.instructorName,
     mediaUrl: course.mediaUrl ?? null,
     mediaType: course.mediaType ?? null,
+    coverImageUrl: course.coverImageUrl ?? null,
   };
 }
 
@@ -167,10 +167,15 @@ router.get("/lms/courses/:id", async (req, res) => {
 
 router.post("/lms/courses", requireRole("lecturer", "admin"), async (req, res) => {
   const user = currentUser(req);
-  const { instructorId: requestedInstructorId, mediaUrl, mediaType, ...fields } = parseOr400(
-    CreateLmsCourseBody,
-    req.body,
-  );
+  // "lessons" bị bỏ qua: số bài học được đếm từ các bài đã xuất bản trong studio
+  const {
+    instructorId: requestedInstructorId,
+    mediaUrl,
+    mediaType,
+    coverImageUrl,
+    lessons: _ignoredLessons,
+    ...fields
+  } = parseOr400(CreateLmsCourseBody, req.body);
 
   const instructor =
     user.role === "admin" && requestedInstructorId !== undefined
@@ -186,11 +191,13 @@ router.post("/lms/courses", requireRole("lecturer", "admin"), async (req, res) =
         status: "Đang hoạt động",
         enrolled: 0,
         progress: 0,
-        accent: courseAccents[(fields.title.length + fields.lessons) % courseAccents.length]!,
+        lessons: 0,
+        accent: courseAccents[fields.title.length % courseAccents.length]!,
         instructorId: instructor.id,
         instructorName: instructor.name,
-        mediaUrl: mediaUrl ?? null,
+        mediaUrl: assertSafeUrl(mediaUrl, "Đường dẫn media"),
         mediaType: mediaType ?? "video",
+        coverImageUrl: assertSafeUrl(coverImageUrl, "Ảnh bìa"),
       })
       .returning();
     res.status(201).json(await getCourseResponse(course!.id));
@@ -203,10 +210,18 @@ router.post("/lms/courses", requireRole("lecturer", "admin"), async (req, res) =
 router.patch("/lms/courses/:id", async (req, res) => {
   const user = currentUser(req);
   const { id } = parseOr400(UpdateLmsCourseParams, req.params);
-  const { instructorId: requestedInstructorId, ...fields } = parseOr400(UpdateLmsCourseBody, req.body);
+  const {
+    instructorId: requestedInstructorId,
+    lessons: _ignoredLessons,
+    mediaUrl,
+    coverImageUrl,
+    ...fields
+  } = parseOr400(UpdateLmsCourseBody, req.body);
   await loadCourseForWrite(user, id);
 
   const update: Partial<typeof lmsCoursesTable.$inferInsert> = { ...fields };
+  if (mediaUrl !== undefined) update.mediaUrl = assertSafeUrl(mediaUrl, "Đường dẫn media");
+  if (coverImageUrl !== undefined) update.coverImageUrl = assertSafeUrl(coverImageUrl, "Ảnh bìa");
   if (requestedInstructorId !== undefined) {
     if (user.role !== "admin") throw forbidden("Chỉ quản trị viên mới được đổi giảng viên phụ trách.");
     const instructor = await resolveInstructor(requestedInstructorId);
@@ -399,128 +414,8 @@ router.get("/lms/plugins", (_req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// TIẾN ĐỘ HỌC TẬP & xAPI (luôn ghi cho người dùng hiện tại)
+// xAPI (luôn ghi cho người dùng hiện tại). Tiến độ bài học: xem routes/studio.ts
 // ---------------------------------------------------------------------------
-router.post("/lms/progress/complete", requireRole("student"), async (req, res) => {
-  const user = currentUser(req);
-  const { courseId, lessonId, score } = parseOr400(CompleteLmsLessonBody, req.body);
-  const learnerId = user.id;
-  const course = await findCourse(courseId);
-  // Chỉ tự ghi danh vào khóa học đang mở; khóa nháp/lưu trữ cần được ghi danh trước
-  if (course.status !== "Đang hoạt động" && !(await isEnrolled(learnerId, courseId))) {
-    throw forbidden("Bạn chưa được ghi danh vào khóa học này.");
-  }
-  const [learner] = await db.select().from(lmsLearnersTable).where(eq(lmsLearnersTable.id, learnerId)).limit(1);
-  if (!learner) throw notFound("Không tìm thấy học viên.");
-  if (score < 70) throw badRequest("Cần đạt ít nhất 70 điểm để hoàn thành bài học.");
-
-  // better-sqlite3: giao dịch phải đồng bộ (không dùng async/await bên trong)
-  const result = db.transaction((tx) => {
-    let enrollment = tx
-      .select()
-      .from(lmsEnrollmentsTable)
-      .where(and(eq(lmsEnrollmentsTable.learnerId, learnerId), eq(lmsEnrollmentsTable.courseId, courseId)))
-      .get();
-    const isNewEnrollment = !enrollment;
-    if (!enrollment) {
-      enrollment = tx
-        .insert(lmsEnrollmentsTable)
-        .values({ learnerId, courseId, status: "Đang học", completedLessonIds: [] })
-        .returning()
-        .get();
-      tx.update(lmsCoursesTable)
-        .set({ enrolled: sql`${lmsCoursesTable.enrolled} + 1` })
-        .where(eq(lmsCoursesTable.id, courseId))
-        .run();
-    }
-    const completedLessonIds = enrollment?.completedLessonIds ?? [];
-    const isNewLesson = !completedLessonIds.includes(lessonId);
-    const nextLessons = isNewLesson ? [...completedLessonIds, lessonId] : completedLessonIds;
-    const progress = Math.min(100, Math.round((nextLessons.length / course.lessons) * 100));
-    const enrolledCount = Math.max(1, course.enrolled + (isNewEnrollment ? 1 : 0));
-    const courseProgress = Math.round((course.progress * (enrolledCount - 1) + progress) / enrolledCount);
-    const certificateSerial = `NOVA-${new Date().getFullYear()}-${String(courseId).padStart(3, "0")}-${String(learnerId).padStart(4, "0")}`;
-    const pointsAwarded = isNewLesson ? Math.max(10, Math.round(score * 1.5)) : 0;
-    let certificateIssued = false;
-
-    if (enrollment) {
-      tx
-        .update(lmsEnrollmentsTable)
-        .set({ completedLessonIds: nextLessons, status: progress === 100 ? "Hoàn thành" : "Đang học" })
-        .where(eq(lmsEnrollmentsTable.id, enrollment.id))
-        .run();
-    }
-    tx
-      .update(lmsLearnersTable)
-      .set({
-        progress: Math.max(learner.progress, progress),
-        activeCourse: course.title,
-        ...(isNewLesson ? { points: sql`${lmsLearnersTable.points} + ${pointsAwarded}` } : {}),
-      })
-      .where(eq(lmsLearnersTable.id, learnerId))
-      .run();
-    tx.update(lmsCoursesTable).set({ progress: courseProgress }).where(eq(lmsCoursesTable.id, courseId)).run();
-
-    if (isNewLesson && score >= 90) {
-      tx
-        .insert(lmsBadgesTable)
-        .values({
-          learnerId,
-          name: "Chinh phục thử thách",
-          description: "Đạt từ 90 điểm trong bài học tương tác.",
-          icon: "award",
-          awardedAt: new Date().toISOString().slice(0, 10),
-        })
-        .onConflictDoNothing()
-        .run();
-    }
-    if (progress === 100) {
-      tx
-        .insert(lmsBadgesTable)
-        .values({
-          learnerId,
-          name: `Hoàn thành ${course.title}`,
-          description: `Hoàn thành tất cả bài học trong ${course.title}.`,
-          icon: "graduation-cap",
-          awardedAt: new Date().toISOString().slice(0, 10),
-        })
-        .onConflictDoNothing()
-        .run();
-      const certificate = tx
-        .insert(lmsCertificatesTable)
-        .values({
-          learner: learner.name,
-          course: course.title,
-          serial: certificateSerial,
-          issuedAt: new Date().toISOString().slice(0, 10),
-          status: "Đã cấp",
-        })
-        .onConflictDoNothing()
-        .returning()
-        .get();
-      certificateIssued = Boolean(certificate);
-    }
-    if (isNewLesson) {
-      tx.insert(lmsActivitiesTable).values({
-        title: `${learner.name} vừa hoàn thành bài học`,
-        detail: `${course.title} · ${score} điểm`,
-        time: "Vừa xong",
-        kind: "completion",
-      }).run();
-    }
-    if (certificateIssued) {
-      tx.insert(lmsActivitiesTable).values({
-        title: "Chứng chỉ được cấp tự động",
-        detail: `${learner.name} · ${course.title}`,
-        time: "Vừa xong",
-        kind: "certificate",
-      }).run();
-    }
-    return { progress, certificateIssued, pointsAwarded };
-  });
-  res.json(CompleteLmsLessonResponse.parse(result));
-});
-
 router.post("/lms/xapi/events", async (req, res) => {
   const user = currentUser(req);
   const body = parseOr400(RecordXapiEventBody, req.body);

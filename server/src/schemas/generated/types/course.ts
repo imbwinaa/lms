@@ -22,6 +22,7 @@ export interface Course {
   category: string;
   level: CourseLevel;
   duration: string;
+  /** Number of published lessons */
   lessons: number;
   enrolled: number;
   progress: number;
@@ -35,4 +36,9 @@ export interface Course {
   mediaUrl: string | null;
   /** @nullable */
   mediaType: string | null;
+  /**
+     * 16:9 cover used on cards and the course header
+     * @nullable
+     */
+  coverImageUrl: string | null;
 }

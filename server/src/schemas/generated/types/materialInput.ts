@@ -22,6 +22,11 @@ export interface MaterialInput {
   fileName?: string;
   fileSize?: string;
   description?: string;
-  /** @minimum 1 */
+  /** Lesson of the same course */
+  lessonId?: number;
+  /**
+     * Deprecated: use lessonId
+     * @minimum 1
+     */
   lessonNumber?: number;
 }

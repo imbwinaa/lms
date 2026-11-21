@@ -24,6 +24,8 @@ tags:
     description: Course materials, assignments and submissions
   - name: upload
     description: File upload and media presets
+  - name: studio
+    description: Course sections, lessons, quizzes and learner progress
 security:
   - bearerAuth: []
 paths:
@@ -450,22 +452,220 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/LearningPlugin" }
-  /lms/progress/complete:
-    post:
-      operationId: completeLmsLesson
-      tags: [lms]
-      summary: Mark a lesson complete for the current student
+  # ---------------------------------------------------------------- COURSE CONTENT (sections, lessons, quizzes)
+  /lms/courses/{id}/outline:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: getCourseOutline
+      tags: [studio]
+      summary: Sections and lessons of a course, with the current user's progress
+      description: The instructor and admins see unpublished lessons; everyone else sees published lessons only.
+      responses:
+        "200":
+          description: Course outline
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseOutline" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/courses/{id}/outline/order:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    put:
+      operationId: reorderCourseOutline
+      tags: [studio]
+      summary: Reorder sections and lessons (instructor or admin)
+      description: Send every section of the course in the new order, each with the ids of its lessons in order. Lessons may move between sections.
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/LessonCompletionInput" }
+            schema: { $ref: "#/components/schemas/OutlineOrderInput" }
       responses:
         "200":
-          description: Lesson completion result
+          description: Updated outline
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseOutline" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/courses/{id}/sections:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    post:
+      operationId: createCourseSection
+      tags: [studio]
+      summary: Add a section at the end of the course (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SectionInput" }
+      responses:
+        "201":
+          description: Created section
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseSection" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/sections/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    patch:
+      operationId: updateCourseSection
+      tags: [studio]
+      summary: Rename a section (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SectionInput" }
+      responses:
+        "200":
+          description: Updated section
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseSection" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: deleteCourseSection
+      tags: [studio]
+      summary: Delete a section and all its lessons (instructor or admin)
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/courses/{id}/lessons:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    post:
+      operationId: createCourseLesson
+      tags: [studio]
+      summary: Add an unpublished lesson at the end of a section (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LessonInput" }
+      responses:
+        "201":
+          description: Created lesson
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lesson" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/lessons/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: getLesson
+      tags: [studio]
+      summary: Full lesson content. Quiz answers are only included for the instructor and admins.
+      responses:
+        "200":
+          description: Lesson
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lesson" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      operationId: updateLesson
+      tags: [studio]
+      summary: Edit a lesson (instructor or admin). HTML content is sanitized on the server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LessonUpdate" }
+      responses:
+        "200":
+          description: Updated lesson
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lesson" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: deleteLesson
+      tags: [studio]
+      summary: Delete a lesson (instructor or admin)
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/lessons/{id}/questions:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    put:
+      operationId: replaceQuizQuestions
+      tags: [studio]
+      summary: Replace all questions of a quiz lesson (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuizQuestionsInput" }
+      responses:
+        "200":
+          description: Updated lesson
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lesson" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/lessons/{id}/complete:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    post:
+      operationId: completeLesson
+      tags: [studio]
+      summary: Mark a video, text or document lesson complete for the current student
+      description: Quiz lessons are completed by passing a quiz attempt instead.
+      responses:
+        "200":
+          description: Completion result
           content:
             application/json:
               schema: { $ref: "#/components/schemas/LessonCompletionResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/lessons/{id}/quiz-attempts:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    post:
+      operationId: submitQuizAttempt
+      tags: [studio]
+      summary: Submit answers to a quiz lesson. Scored on the server; passing completes the lesson.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuizAttemptInput" }
+      responses:
+        "201":
+          description: Scored attempt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuizAttemptResult" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -903,7 +1103,7 @@ components:
       enum: [video, audio, document, scorm]
     Course:
       type: object
-      required: [id, title, description, category, level, duration, lessons, enrolled, progress, status, format, accent, instructorId, instructorName, mediaUrl, mediaType]
+      required: [id, title, description, category, level, duration, lessons, enrolled, progress, status, format, accent, instructorId, instructorName, mediaUrl, mediaType, coverImageUrl]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -911,7 +1111,7 @@ components:
         category: { type: string }
         level: { $ref: "#/components/schemas/CourseLevel" }
         duration: { type: string }
-        lessons: { type: integer }
+        lessons: { type: integer, description: "Number of published lessons" }
         enrolled: { type: integer }
         progress: { type: number }
         status: { $ref: "#/components/schemas/CourseStatus" }
@@ -921,20 +1121,22 @@ components:
         instructorName: { type: string }
         mediaUrl: { type: [string, "null"] }
         mediaType: { type: [string, "null"] }
+        coverImageUrl: { type: [string, "null"], description: "16:9 cover used on cards and the course header" }
     CourseInput:
       type: object
-      required: [title, description, category, level, duration, lessons, format]
+      required: [title, description, category, level, duration, format]
       properties:
         title: { type: string, minLength: 2 }
         description: { type: string }
         category: { type: string }
         level: { $ref: "#/components/schemas/CourseLevel" }
         duration: { type: string }
-        lessons: { type: integer, minimum: 1 }
+        lessons: { type: integer, description: "Deprecated and ignored: counted from published lessons" }
         format: { $ref: "#/components/schemas/CourseFormat" }
         instructorId: { type: integer, description: "Admin only; ignored for lecturers" }
         mediaUrl: { type: [string, "null"] }
         mediaType: { $ref: "#/components/schemas/MediaType" }
+        coverImageUrl: { type: [string, "null"] }
     CourseUpdate:
       type: object
       properties:
@@ -943,12 +1145,13 @@ components:
         category: { type: string }
         level: { $ref: "#/components/schemas/CourseLevel" }
         duration: { type: string }
-        lessons: { type: integer, minimum: 1 }
+        lessons: { type: integer, description: "Deprecated and ignored: counted from published lessons" }
         status: { $ref: "#/components/schemas/CourseStatus" }
         format: { $ref: "#/components/schemas/CourseFormat" }
         instructorId: { type: integer, description: "Admin only" }
         mediaUrl: { type: [string, "null"] }
         mediaType: { $ref: "#/components/schemas/MediaType" }
+        coverImageUrl: { type: [string, "null"] }
 
     # ------------------------------------------------ accounts
     AccountStatus:
@@ -1073,18 +1276,11 @@ components:
         standard: { type: string }
         status: { type: string, enum: [Đang bật, Sẵn sàng, Chưa kết nối] }
         icon: { type: string }
-    LessonCompletionInput:
-      type: object
-      required: [courseId, lessonId, score]
-      properties:
-        courseId: { type: integer }
-        lessonId: { type: string, minLength: 1 }
-        score: { type: number, minimum: 0, maximum: 100 }
     LessonCompletionResult:
       type: object
       required: [progress, certificateIssued, pointsAwarded]
       properties:
-        progress: { type: number }
+        progress: { type: number, description: "Course progress of the current student, 0-100" }
         certificateIssued: { type: boolean }
         pointsAwarded: { type: integer }
     XapiEventInput:
@@ -1112,11 +1308,12 @@ components:
       enum: [pdf, doc, slide, video, link]
     Material:
       type: object
-      required: [id, courseId, lessonNumber, title, type, fileUrl, fileName, fileSize, description, uploadedBy, downloadCount, createdAt]
+      required: [id, courseId, lessonId, lessonNumber, title, type, fileUrl, fileName, fileSize, description, uploadedBy, downloadCount, createdAt]
       properties:
         id: { type: integer }
         courseId: { type: integer }
-        lessonNumber: { type: integer }
+        lessonId: { type: [integer, "null"], description: "Lesson this material belongs to" }
+        lessonNumber: { type: integer, description: "Deprecated: use lessonId" }
         title: { type: string }
         type: { $ref: "#/components/schemas/MaterialType" }
         fileUrl: { type: string }
@@ -1136,7 +1333,8 @@ components:
         fileName: { type: string }
         fileSize: { type: string }
         description: { type: string }
-        lessonNumber: { type: integer, minimum: 1 }
+        lessonId: { type: integer, description: "Lesson of the same course" }
+        lessonNumber: { type: integer, minimum: 1, description: "Deprecated: use lessonId" }
     DownloadResult:
       type: object
       required: [downloadCount]
@@ -1205,6 +1403,174 @@ components:
       properties:
         grade: { type: number, minimum: 0 }
         feedback: { type: string }
+
+    # ------------------------------------------------ course content
+    LessonType:
+      type: string
+      enum: [video, text, document, quiz]
+    LessonSummary:
+      type: object
+      required: [id, sectionId, title, type, position, durationMinutes, isPublished, completed]
+      properties:
+        id: { type: integer }
+        sectionId: { type: integer }
+        title: { type: string }
+        type: { $ref: "#/components/schemas/LessonType" }
+        position: { type: integer }
+        durationMinutes: { type: integer }
+        isPublished: { type: boolean }
+        completed: { type: boolean, description: "Completed by the current user" }
+    CourseSection:
+      type: object
+      required: [id, courseId, title, position, lessons]
+      properties:
+        id: { type: integer }
+        courseId: { type: integer }
+        title: { type: string }
+        position: { type: integer }
+        lessons:
+          type: array
+          items: { $ref: "#/components/schemas/LessonSummary" }
+    OutlineProgress:
+      type: object
+      required: [completed, total, percent]
+      properties:
+        completed: { type: integer }
+        total: { type: integer, description: "Published lessons" }
+        percent: { type: integer }
+    CourseOutline:
+      type: object
+      required: [courseId, canEdit, enrolled, sections, progress]
+      properties:
+        courseId: { type: integer }
+        canEdit: { type: boolean, description: "Current user is the instructor or an admin" }
+        enrolled: { type: boolean, description: "Current user is enrolled as a student" }
+        sections:
+          type: array
+          items: { $ref: "#/components/schemas/CourseSection" }
+        progress: { $ref: "#/components/schemas/OutlineProgress" }
+    QuizQuestion:
+      type: object
+      required: [id, prompt, options, correctIndex, explanation]
+      properties:
+        id: { type: integer }
+        prompt: { type: string }
+        options:
+          type: array
+          items: { type: string }
+        correctIndex: { type: [integer, "null"], description: "Only sent to the instructor and admins" }
+        explanation: { type: [string, "null"], description: "Only sent to the instructor and admins" }
+    Lesson:
+      type: object
+      required: [id, courseId, sectionId, title, type, position, contentHtml, mediaUrl, durationMinutes, isPublished, passScore, questions, completed, bestScore, updatedAt]
+      properties:
+        id: { type: integer }
+        courseId: { type: integer }
+        sectionId: { type: integer }
+        title: { type: string }
+        type: { $ref: "#/components/schemas/LessonType" }
+        position: { type: integer }
+        contentHtml: { type: string, description: "Sanitized HTML" }
+        mediaUrl: { type: [string, "null"], description: "Video or document URL" }
+        durationMinutes: { type: integer }
+        isPublished: { type: boolean }
+        passScore: { type: integer, description: "Quiz pass mark, 0-100" }
+        questions:
+          type: array
+          items: { $ref: "#/components/schemas/QuizQuestion" }
+        completed: { type: boolean }
+        bestScore: { type: [integer, "null"], description: "Best quiz score of the current user" }
+        updatedAt: { type: string, format: date-time }
+    SectionInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    LessonInput:
+      type: object
+      required: [sectionId, title, type]
+      properties:
+        sectionId: { type: integer }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        type: { $ref: "#/components/schemas/LessonType" }
+    LessonUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        type: { $ref: "#/components/schemas/LessonType" }
+        contentHtml: { type: string, maxLength: 200000 }
+        mediaUrl: { type: [string, "null"] }
+        durationMinutes: { type: integer, minimum: 0, maximum: 1440 }
+        isPublished: { type: boolean }
+        passScore: { type: integer, minimum: 0, maximum: 100 }
+    OutlineOrderInput:
+      type: object
+      required: [sections]
+      properties:
+        sections:
+          type: array
+          items:
+            type: object
+            required: [id, lessonIds]
+            properties:
+              id: { type: integer }
+              lessonIds:
+                type: array
+                items: { type: integer }
+    QuizQuestionInput:
+      type: object
+      required: [prompt, options, correctIndex]
+      properties:
+        prompt: { type: string, minLength: 1, maxLength: 1000 }
+        options:
+          type: array
+          minItems: 2
+          maxItems: 6
+          items: { type: string, minLength: 1, maxLength: 500 }
+        correctIndex: { type: integer, minimum: 0 }
+        explanation: { type: string, maxLength: 1000 }
+    QuizQuestionsInput:
+      type: object
+      required: [questions]
+      properties:
+        questions:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/QuizQuestionInput" }
+    QuizAttemptInput:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          description: Chosen option index for each question, in question order
+          items: { type: integer, minimum: 0 }
+    QuizQuestionResult:
+      type: object
+      required: [questionId, chosenIndex, correctIndex, correct, explanation]
+      properties:
+        questionId: { type: integer }
+        chosenIndex: { type: integer }
+        correctIndex: { type: integer }
+        correct: { type: boolean }
+        explanation: { type: [string, "null"] }
+    QuizAttemptResult:
+      type: object
+      required: [score, passed, passScore, correctCount, total, results, completion]
+      properties:
+        score: { type: integer }
+        passed: { type: boolean }
+        passScore: { type: integer }
+        correctCount: { type: integer }
+        total: { type: integer }
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/QuizQuestionResult" }
+        completion:
+          description: Set when this attempt completed the lesson
+          oneOf:
+            - $ref: "#/components/schemas/LessonCompletionResult"
+            - type: "null"
 
     # ------------------------------------------------ upload
     MediaPreset:

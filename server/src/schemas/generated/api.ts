@@ -146,7 +146,7 @@ export const ListLmsCoursesResponseItem = zod.object({
   "category": zod.string(),
   "level": zod.enum(['Cơ bản', 'Trung cấp', 'Nâng cao']),
   "duration": zod.string(),
-  "lessons": zod.int(),
+  "lessons": zod.int().describe('Number of published lessons'),
   "enrolled": zod.int(),
   "progress": zod.number(),
   "status": zod.enum(['Đang hoạt động', 'Bản nháp', 'Lưu trữ']),
@@ -155,7 +155,8 @@ export const ListLmsCoursesResponseItem = zod.object({
   "instructorId": zod.int().nullable(),
   "instructorName": zod.string(),
   "mediaUrl": zod.string().nullable(),
-  "mediaType": zod.string().nullable()
+  "mediaType": zod.string().nullable(),
+  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header')
 })
 export const ListLmsCoursesResponse = zod.array(ListLmsCoursesResponseItem)
 
@@ -168,18 +169,18 @@ export const createLmsCourseBodyTitleMin = 2;
 
 
 
-
 export const CreateLmsCourseBody = zod.object({
   "title": zod.string().min(createLmsCourseBodyTitleMin),
   "description": zod.string(),
   "category": zod.string(),
   "level": zod.enum(['Cơ bản', 'Trung cấp', 'Nâng cao']),
   "duration": zod.string(),
-  "lessons": zod.int().min(1),
+  "lessons": zod.int().optional().describe('Deprecated and ignored: counted from published lessons'),
   "format": zod.enum(['Native', 'SCORM 1.2', 'xAPI', 'H5P']),
   "instructorId": zod.int().optional().describe('Admin only; ignored for lecturers'),
   "mediaUrl": zod.string().nullish(),
-  "mediaType": zod.enum(['video', 'audio', 'document', 'scorm']).optional()
+  "mediaType": zod.enum(['video', 'audio', 'document', 'scorm']).optional(),
+  "coverImageUrl": zod.string().nullish()
 })
 
 export const CreateLmsCourseResponse = zod.object({
@@ -189,7 +190,7 @@ export const CreateLmsCourseResponse = zod.object({
   "category": zod.string(),
   "level": zod.enum(['Cơ bản', 'Trung cấp', 'Nâng cao']),
   "duration": zod.string(),
-  "lessons": zod.int(),
+  "lessons": zod.int().describe('Number of published lessons'),
   "enrolled": zod.int(),
   "progress": zod.number(),
   "status": zod.enum(['Đang hoạt động', 'Bản nháp', 'Lưu trữ']),
@@ -198,7 +199,8 @@ export const CreateLmsCourseResponse = zod.object({
   "instructorId": zod.int().nullable(),
   "instructorName": zod.string(),
   "mediaUrl": zod.string().nullable(),
-  "mediaType": zod.string().nullable()
+  "mediaType": zod.string().nullable(),
+  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header')
 })
 
 
@@ -219,7 +221,7 @@ export const GetLmsCourseResponse = zod.object({
   "category": zod.string(),
   "level": zod.enum(['Cơ bản', 'Trung cấp', 'Nâng cao']),
   "duration": zod.string(),
-  "lessons": zod.int(),
+  "lessons": zod.int().describe('Number of published lessons'),
   "enrolled": zod.int(),
   "progress": zod.number(),
   "status": zod.enum(['Đang hoạt động', 'Bản nháp', 'Lưu trữ']),
@@ -228,7 +230,8 @@ export const GetLmsCourseResponse = zod.object({
   "instructorId": zod.int().nullable(),
   "instructorName": zod.string(),
   "mediaUrl": zod.string().nullable(),
-  "mediaType": zod.string().nullable()
+  "mediaType": zod.string().nullable(),
+  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header')
 })
 
 
@@ -246,19 +249,19 @@ export const updateLmsCourseBodyTitleMin = 2;
 
 
 
-
 export const UpdateLmsCourseBody = zod.object({
   "title": zod.string().min(updateLmsCourseBodyTitleMin).optional(),
   "description": zod.string().optional(),
   "category": zod.string().optional(),
   "level": zod.enum(['Cơ bản', 'Trung cấp', 'Nâng cao']).optional(),
   "duration": zod.string().optional(),
-  "lessons": zod.int().min(1).optional(),
+  "lessons": zod.int().optional().describe('Deprecated and ignored: counted from published lessons'),
   "status": zod.enum(['Đang hoạt động', 'Bản nháp', 'Lưu trữ']).optional(),
   "format": zod.enum(['Native', 'SCORM 1.2', 'xAPI', 'H5P']).optional(),
   "instructorId": zod.int().optional().describe('Admin only'),
   "mediaUrl": zod.string().nullish(),
-  "mediaType": zod.enum(['video', 'audio', 'document', 'scorm']).optional()
+  "mediaType": zod.enum(['video', 'audio', 'document', 'scorm']).optional(),
+  "coverImageUrl": zod.string().nullish()
 })
 
 export const UpdateLmsCourseResponse = zod.object({
@@ -268,7 +271,7 @@ export const UpdateLmsCourseResponse = zod.object({
   "category": zod.string(),
   "level": zod.enum(['Cơ bản', 'Trung cấp', 'Nâng cao']),
   "duration": zod.string(),
-  "lessons": zod.int(),
+  "lessons": zod.int().describe('Number of published lessons'),
   "enrolled": zod.int(),
   "progress": zod.number(),
   "status": zod.enum(['Đang hoạt động', 'Bản nháp', 'Lưu trữ']),
@@ -277,7 +280,8 @@ export const UpdateLmsCourseResponse = zod.object({
   "instructorId": zod.int().nullable(),
   "instructorName": zod.string(),
   "mediaUrl": zod.string().nullable(),
-  "mediaType": zod.string().nullable()
+  "mediaType": zod.string().nullable(),
+  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header')
 })
 
 
@@ -598,24 +602,442 @@ export const ListLmsPluginsResponse = zod.array(ListLmsPluginsResponseItem)
 
 
 /**
- * @summary Mark a lesson complete for the current student
+ * The instructor and admins see unpublished lessons; everyone else sees published lessons only.
+ * @summary Sections and lessons of a course, with the current user's progress
  */
 
-export const completeLmsLessonBodyScoreMin = 0;
-export const completeLmsLessonBodyScoreMax = 100;
 
 
-
-export const CompleteLmsLessonBody = zod.object({
-  "courseId": zod.int(),
-  "lessonId": zod.string().min(1),
-  "score": zod.number().min(completeLmsLessonBodyScoreMin).max(completeLmsLessonBodyScoreMax)
+export const GetCourseOutlineParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
 })
 
-export const CompleteLmsLessonResponse = zod.object({
-  "progress": zod.number(),
+export const GetCourseOutlineResponse = zod.object({
+  "courseId": zod.int(),
+  "canEdit": zod.boolean().describe('Current user is the instructor or an admin'),
+  "enrolled": zod.boolean().describe('Current user is enrolled as a student'),
+  "sections": zod.array(zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "title": zod.string(),
+  "position": zod.int(),
+  "lessons": zod.array(zod.object({
+  "id": zod.int(),
+  "sectionId": zod.int(),
+  "title": zod.string(),
+  "type": zod.enum(['video', 'text', 'document', 'quiz']),
+  "position": zod.int(),
+  "durationMinutes": zod.int(),
+  "isPublished": zod.boolean(),
+  "completed": zod.boolean().describe('Completed by the current user')
+}))
+})),
+  "progress": zod.object({
+  "completed": zod.int(),
+  "total": zod.int().describe('Published lessons'),
+  "percent": zod.int()
+})
+})
+
+
+/**
+ * Send every section of the course in the new order, each with the ids of its lessons in order. Lessons may move between sections.
+ * @summary Reorder sections and lessons (instructor or admin)
+ */
+
+
+
+export const ReorderCourseOutlineParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const ReorderCourseOutlineBody = zod.object({
+  "sections": zod.array(zod.object({
+  "id": zod.int(),
+  "lessonIds": zod.array(zod.int())
+}))
+})
+
+export const ReorderCourseOutlineResponse = zod.object({
+  "courseId": zod.int(),
+  "canEdit": zod.boolean().describe('Current user is the instructor or an admin'),
+  "enrolled": zod.boolean().describe('Current user is enrolled as a student'),
+  "sections": zod.array(zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "title": zod.string(),
+  "position": zod.int(),
+  "lessons": zod.array(zod.object({
+  "id": zod.int(),
+  "sectionId": zod.int(),
+  "title": zod.string(),
+  "type": zod.enum(['video', 'text', 'document', 'quiz']),
+  "position": zod.int(),
+  "durationMinutes": zod.int(),
+  "isPublished": zod.boolean(),
+  "completed": zod.boolean().describe('Completed by the current user')
+}))
+})),
+  "progress": zod.object({
+  "completed": zod.int(),
+  "total": zod.int().describe('Published lessons'),
+  "percent": zod.int()
+})
+})
+
+
+/**
+ * @summary Add a section at the end of the course (instructor or admin)
+ */
+
+
+
+export const CreateCourseSectionParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const createCourseSectionBodyTitleMax = 200;
+
+
+
+export const CreateCourseSectionBody = zod.object({
+  "title": zod.string().min(1).max(createCourseSectionBodyTitleMax)
+})
+
+export const CreateCourseSectionResponse = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "title": zod.string(),
+  "position": zod.int(),
+  "lessons": zod.array(zod.object({
+  "id": zod.int(),
+  "sectionId": zod.int(),
+  "title": zod.string(),
+  "type": zod.enum(['video', 'text', 'document', 'quiz']),
+  "position": zod.int(),
+  "durationMinutes": zod.int(),
+  "isPublished": zod.boolean(),
+  "completed": zod.boolean().describe('Completed by the current user')
+}))
+})
+
+
+/**
+ * @summary Rename a section (instructor or admin)
+ */
+
+
+
+export const UpdateCourseSectionParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateCourseSectionBodyTitleMax = 200;
+
+
+
+export const UpdateCourseSectionBody = zod.object({
+  "title": zod.string().min(1).max(updateCourseSectionBodyTitleMax)
+})
+
+export const UpdateCourseSectionResponse = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "title": zod.string(),
+  "position": zod.int(),
+  "lessons": zod.array(zod.object({
+  "id": zod.int(),
+  "sectionId": zod.int(),
+  "title": zod.string(),
+  "type": zod.enum(['video', 'text', 'document', 'quiz']),
+  "position": zod.int(),
+  "durationMinutes": zod.int(),
+  "isPublished": zod.boolean(),
+  "completed": zod.boolean().describe('Completed by the current user')
+}))
+})
+
+
+/**
+ * @summary Delete a section and all its lessons (instructor or admin)
+ */
+
+
+
+export const DeleteCourseSectionParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DeleteCourseSectionResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Add an unpublished lesson at the end of a section (instructor or admin)
+ */
+
+
+
+export const CreateCourseLessonParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const createCourseLessonBodyTitleMax = 200;
+
+
+
+export const CreateCourseLessonBody = zod.object({
+  "sectionId": zod.int(),
+  "title": zod.string().min(1).max(createCourseLessonBodyTitleMax),
+  "type": zod.enum(['video', 'text', 'document', 'quiz'])
+})
+
+export const CreateCourseLessonResponse = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "sectionId": zod.int(),
+  "title": zod.string(),
+  "type": zod.enum(['video', 'text', 'document', 'quiz']),
+  "position": zod.int(),
+  "contentHtml": zod.string().describe('Sanitized HTML'),
+  "mediaUrl": zod.string().nullable().describe('Video or document URL'),
+  "durationMinutes": zod.int(),
+  "isPublished": zod.boolean(),
+  "passScore": zod.int().describe('Quiz pass mark, 0-100'),
+  "questions": zod.array(zod.object({
+  "id": zod.int(),
+  "prompt": zod.string(),
+  "options": zod.array(zod.string()),
+  "correctIndex": zod.int().nullable().describe('Only sent to the instructor and admins'),
+  "explanation": zod.string().nullable().describe('Only sent to the instructor and admins')
+})),
+  "completed": zod.boolean(),
+  "bestScore": zod.int().nullable().describe('Best quiz score of the current user'),
+  "updatedAt": zod.iso.datetime({"offset":true})
+})
+
+
+/**
+ * @summary Full lesson content. Quiz answers are only included for the instructor and admins.
+ */
+
+
+
+export const GetLessonParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const GetLessonResponse = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "sectionId": zod.int(),
+  "title": zod.string(),
+  "type": zod.enum(['video', 'text', 'document', 'quiz']),
+  "position": zod.int(),
+  "contentHtml": zod.string().describe('Sanitized HTML'),
+  "mediaUrl": zod.string().nullable().describe('Video or document URL'),
+  "durationMinutes": zod.int(),
+  "isPublished": zod.boolean(),
+  "passScore": zod.int().describe('Quiz pass mark, 0-100'),
+  "questions": zod.array(zod.object({
+  "id": zod.int(),
+  "prompt": zod.string(),
+  "options": zod.array(zod.string()),
+  "correctIndex": zod.int().nullable().describe('Only sent to the instructor and admins'),
+  "explanation": zod.string().nullable().describe('Only sent to the instructor and admins')
+})),
+  "completed": zod.boolean(),
+  "bestScore": zod.int().nullable().describe('Best quiz score of the current user'),
+  "updatedAt": zod.iso.datetime({"offset":true})
+})
+
+
+/**
+ * @summary Edit a lesson (instructor or admin). HTML content is sanitized on the server.
+ */
+
+
+
+export const UpdateLessonParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateLessonBodyTitleMax = 200;
+
+export const updateLessonBodyContentHtmlMax = 200000;
+
+export const updateLessonBodyDurationMinutesMin = 0;
+export const updateLessonBodyDurationMinutesMax = 1440;
+
+export const updateLessonBodyPassScoreMin = 0;
+export const updateLessonBodyPassScoreMax = 100;
+
+
+
+export const UpdateLessonBody = zod.object({
+  "title": zod.string().min(1).max(updateLessonBodyTitleMax).optional(),
+  "type": zod.enum(['video', 'text', 'document', 'quiz']).optional(),
+  "contentHtml": zod.string().max(updateLessonBodyContentHtmlMax).optional(),
+  "mediaUrl": zod.string().nullish(),
+  "durationMinutes": zod.int().min(updateLessonBodyDurationMinutesMin).max(updateLessonBodyDurationMinutesMax).optional(),
+  "isPublished": zod.boolean().optional(),
+  "passScore": zod.int().min(updateLessonBodyPassScoreMin).max(updateLessonBodyPassScoreMax).optional()
+})
+
+export const UpdateLessonResponse = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "sectionId": zod.int(),
+  "title": zod.string(),
+  "type": zod.enum(['video', 'text', 'document', 'quiz']),
+  "position": zod.int(),
+  "contentHtml": zod.string().describe('Sanitized HTML'),
+  "mediaUrl": zod.string().nullable().describe('Video or document URL'),
+  "durationMinutes": zod.int(),
+  "isPublished": zod.boolean(),
+  "passScore": zod.int().describe('Quiz pass mark, 0-100'),
+  "questions": zod.array(zod.object({
+  "id": zod.int(),
+  "prompt": zod.string(),
+  "options": zod.array(zod.string()),
+  "correctIndex": zod.int().nullable().describe('Only sent to the instructor and admins'),
+  "explanation": zod.string().nullable().describe('Only sent to the instructor and admins')
+})),
+  "completed": zod.boolean(),
+  "bestScore": zod.int().nullable().describe('Best quiz score of the current user'),
+  "updatedAt": zod.iso.datetime({"offset":true})
+})
+
+
+/**
+ * @summary Delete a lesson (instructor or admin)
+ */
+
+
+
+export const DeleteLessonParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DeleteLessonResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Replace all questions of a quiz lesson (instructor or admin)
+ */
+
+
+
+export const ReplaceQuizQuestionsParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const replaceQuizQuestionsBodyQuestionsItemPromptMax = 1000;
+
+export const replaceQuizQuestionsBodyQuestionsItemOptionsItemMax = 500;
+
+export const replaceQuizQuestionsBodyQuestionsItemOptionsMin = 2;
+export const replaceQuizQuestionsBodyQuestionsItemOptionsMax = 6;
+
+export const replaceQuizQuestionsBodyQuestionsItemCorrectIndexMin = 0;
+
+export const replaceQuizQuestionsBodyQuestionsItemExplanationMax = 1000;
+
+export const replaceQuizQuestionsBodyQuestionsMax = 50;
+
+
+
+export const ReplaceQuizQuestionsBody = zod.object({
+  "questions": zod.array(zod.object({
+  "prompt": zod.string().min(1).max(replaceQuizQuestionsBodyQuestionsItemPromptMax),
+  "options": zod.array(zod.string().min(1).max(replaceQuizQuestionsBodyQuestionsItemOptionsItemMax)).min(replaceQuizQuestionsBodyQuestionsItemOptionsMin).max(replaceQuizQuestionsBodyQuestionsItemOptionsMax),
+  "correctIndex": zod.int().min(replaceQuizQuestionsBodyQuestionsItemCorrectIndexMin),
+  "explanation": zod.string().max(replaceQuizQuestionsBodyQuestionsItemExplanationMax).optional()
+})).max(replaceQuizQuestionsBodyQuestionsMax)
+})
+
+export const ReplaceQuizQuestionsResponse = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "sectionId": zod.int(),
+  "title": zod.string(),
+  "type": zod.enum(['video', 'text', 'document', 'quiz']),
+  "position": zod.int(),
+  "contentHtml": zod.string().describe('Sanitized HTML'),
+  "mediaUrl": zod.string().nullable().describe('Video or document URL'),
+  "durationMinutes": zod.int(),
+  "isPublished": zod.boolean(),
+  "passScore": zod.int().describe('Quiz pass mark, 0-100'),
+  "questions": zod.array(zod.object({
+  "id": zod.int(),
+  "prompt": zod.string(),
+  "options": zod.array(zod.string()),
+  "correctIndex": zod.int().nullable().describe('Only sent to the instructor and admins'),
+  "explanation": zod.string().nullable().describe('Only sent to the instructor and admins')
+})),
+  "completed": zod.boolean(),
+  "bestScore": zod.int().nullable().describe('Best quiz score of the current user'),
+  "updatedAt": zod.iso.datetime({"offset":true})
+})
+
+
+/**
+ * Quiz lessons are completed by passing a quiz attempt instead.
+ * @summary Mark a video, text or document lesson complete for the current student
+ */
+
+
+
+export const CompleteLessonParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const CompleteLessonResponse = zod.object({
+  "progress": zod.number().describe('Course progress of the current student, 0-100'),
   "certificateIssued": zod.boolean(),
   "pointsAwarded": zod.int()
+})
+
+
+/**
+ * @summary Submit answers to a quiz lesson. Scored on the server; passing completes the lesson.
+ */
+
+
+
+export const SubmitQuizAttemptParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const submitQuizAttemptBodyAnswersItemMin = 0;
+
+
+
+export const SubmitQuizAttemptBody = zod.object({
+  "answers": zod.array(zod.int().min(submitQuizAttemptBodyAnswersItemMin)).describe('Chosen option index for each question, in question order')
+})
+
+export const SubmitQuizAttemptResponse = zod.object({
+  "score": zod.int(),
+  "passed": zod.boolean(),
+  "passScore": zod.int(),
+  "correctCount": zod.int(),
+  "total": zod.int(),
+  "results": zod.array(zod.object({
+  "questionId": zod.int(),
+  "chosenIndex": zod.int(),
+  "correctIndex": zod.int(),
+  "correct": zod.boolean(),
+  "explanation": zod.string().nullable()
+})),
+  "completion": zod.union([zod.object({
+  "progress": zod.number().describe('Course progress of the current student, 0-100'),
+  "certificateIssued": zod.boolean(),
+  "pointsAwarded": zod.int()
+}),zod.null()]).describe('Set when this attempt completed the lesson')
 })
 
 
@@ -659,7 +1081,8 @@ export const ListCourseMaterialsParams = zod.object({
 export const ListCourseMaterialsResponseItem = zod.object({
   "id": zod.int(),
   "courseId": zod.int(),
-  "lessonNumber": zod.int(),
+  "lessonId": zod.int().nullable().describe('Lesson this material belongs to'),
+  "lessonNumber": zod.int().describe('Deprecated: use lessonId'),
   "title": zod.string(),
   "type": zod.enum(['pdf', 'doc', 'slide', 'video', 'link']),
   "fileUrl": zod.string(),
@@ -695,13 +1118,15 @@ export const CreateCourseMaterialBody = zod.object({
   "fileName": zod.string().optional(),
   "fileSize": zod.string().optional(),
   "description": zod.string().optional(),
-  "lessonNumber": zod.int().min(1).optional()
+  "lessonId": zod.int().optional().describe('Lesson of the same course'),
+  "lessonNumber": zod.int().min(1).optional().describe('Deprecated: use lessonId')
 })
 
 export const CreateCourseMaterialResponse = zod.object({
   "id": zod.int(),
   "courseId": zod.int(),
-  "lessonNumber": zod.int(),
+  "lessonId": zod.int().nullable().describe('Lesson this material belongs to'),
+  "lessonNumber": zod.int().describe('Deprecated: use lessonId'),
   "title": zod.string(),
   "type": zod.enum(['pdf', 'doc', 'slide', 'video', 'link']),
   "fileUrl": zod.string(),

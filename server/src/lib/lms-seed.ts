@@ -14,6 +14,7 @@ import {
   lmsXapiEventsTable,
 } from "../db";
 import { hashPassword } from "./auth";
+import { seedDemoOutlines } from "./demo-outline-seed";
 
 /**
  * Chế độ khởi tạo dữ liệu:
@@ -616,7 +617,7 @@ export function ensureLmsSeeded(): Promise<void> {
   if (!seedPromise) {
     // Dữ liệu mẫu (và gán giảng viên cho khóa mẫu) chỉ chạy ở chế độ demo;
     // ở chế độ thật, khóa học không có giảng viên là do admin chủ động gỡ — không tự gán lại.
-    const run = isDemoSeedEnabled() ? seedLmsData().then(backfillCourseInstructors) : seedFirstAdmin();
+    const run = isDemoSeedEnabled() ? seedLmsData().then(backfillCourseInstructors).then(seedDemoOutlines) : seedFirstAdmin();
     seedPromise = run.catch((error: unknown) => {
       seedPromise = undefined;
       throw error;

@@ -13,6 +13,7 @@
  */
 
 export interface LessonCompletionResult {
+  /** Course progress of the current student, 0-100 */
   progress: number;
   certificateIssued: boolean;
   pointsAwarded: number;

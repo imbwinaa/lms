@@ -171,6 +171,68 @@ try { sqlite.exec("ALTER TABLE lms_learners ADD COLUMN status TEXT NOT NULL DEFA
 try { sqlite.exec("ALTER TABLE lms_courses ADD COLUMN instructor_id INTEGER REFERENCES lms_learners(id) ON DELETE SET NULL"); } catch {}
 sqlite.exec("CREATE INDEX IF NOT EXISTS lms_sessions_user_idx ON lms_sessions(user_id)");
 sqlite.exec("CREATE INDEX IF NOT EXISTS lms_courses_instructor_idx ON lms_courses(instructor_id)");
+try { sqlite.exec("ALTER TABLE lms_courses ADD COLUMN cover_image_url TEXT"); } catch {}
+
+// Nội dung khóa học: chương (section) -> bài học (lesson) -> câu hỏi quiz; tiến độ & lượt làm quiz
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS lms_course_sections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL REFERENCES lms_courses(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+  );
+  CREATE INDEX IF NOT EXISTS lms_course_sections_course_idx ON lms_course_sections(course_id, position);
+
+  CREATE TABLE IF NOT EXISTS lms_lessons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL REFERENCES lms_courses(id) ON DELETE CASCADE,
+    section_id INTEGER NOT NULL REFERENCES lms_course_sections(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'text',
+    position INTEGER NOT NULL DEFAULT 0,
+    content_html TEXT NOT NULL DEFAULT '',
+    media_url TEXT,
+    duration_minutes INTEGER NOT NULL DEFAULT 0,
+    is_published INTEGER NOT NULL DEFAULT 0,
+    pass_score INTEGER NOT NULL DEFAULT 70,
+    created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+    updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+  );
+  CREATE INDEX IF NOT EXISTS lms_lessons_section_idx ON lms_lessons(section_id, position);
+  CREATE INDEX IF NOT EXISTS lms_lessons_course_idx ON lms_lessons(course_id);
+
+  CREATE TABLE IF NOT EXISTS lms_quiz_questions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lesson_id INTEGER NOT NULL REFERENCES lms_lessons(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL DEFAULT 0,
+    prompt TEXT NOT NULL,
+    options TEXT NOT NULL DEFAULT '[]',
+    correct_index INTEGER NOT NULL,
+    explanation TEXT
+  );
+  CREATE INDEX IF NOT EXISTS lms_quiz_questions_lesson_idx ON lms_quiz_questions(lesson_id, position);
+
+  CREATE TABLE IF NOT EXISTS lms_quiz_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lesson_id INTEGER NOT NULL REFERENCES lms_lessons(id) ON DELETE CASCADE,
+    learner_id INTEGER NOT NULL REFERENCES lms_learners(id) ON DELETE CASCADE,
+    answers TEXT NOT NULL DEFAULT '[]',
+    score INTEGER NOT NULL,
+    passed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+  );
+  CREATE INDEX IF NOT EXISTS lms_quiz_attempts_lesson_learner_idx ON lms_quiz_attempts(lesson_id, learner_id);
+
+  CREATE TABLE IF NOT EXISTS lms_lesson_completions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lesson_id INTEGER NOT NULL REFERENCES lms_lessons(id) ON DELETE CASCADE,
+    learner_id INTEGER NOT NULL REFERENCES lms_learners(id) ON DELETE CASCADE,
+    completed_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS lms_lesson_completions_unique ON lms_lesson_completions(lesson_id, learner_id);
+`);
+try { sqlite.exec("ALTER TABLE lms_materials ADD COLUMN lesson_id INTEGER REFERENCES lms_lessons(id) ON DELETE SET NULL"); } catch {}
 
 export const db = drizzle(sqlite, { schema });
 

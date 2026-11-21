@@ -23,7 +23,7 @@ export interface CourseUpdate {
   category?: string;
   level?: CourseLevel;
   duration?: string;
-  /** @minimum 1 */
+  /** Deprecated and ignored: counted from published lessons */
   lessons?: number;
   status?: CourseStatus;
   format?: CourseFormat;
@@ -32,4 +32,6 @@ export interface CourseUpdate {
   /** @nullable */
   mediaUrl?: string | null;
   mediaType?: MediaType;
+  /** @nullable */
+  coverImageUrl?: string | null;
 }

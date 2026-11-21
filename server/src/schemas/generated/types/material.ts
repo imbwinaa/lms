@@ -16,6 +16,12 @@ import type { MaterialType } from './materialType';
 export interface Material {
   id: number;
   courseId: number;
+  /**
+     * Lesson this material belongs to
+     * @nullable
+     */
+  lessonId: number | null;
+  /** Deprecated: use lessonId */
   lessonNumber: number;
   title: string;
   type: MaterialType;

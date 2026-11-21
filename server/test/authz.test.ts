@@ -416,19 +416,13 @@ describe("materials, assignments & submissions", () => {
 });
 
 describe("learning progress", () => {
-  it("records completion for the signed-in student only", async () => {
+  it("no longer accepts lesson scores sent by the browser", async () => {
+    // Đã thay bằng /lms/lessons/{id}/complete và /quiz-attempts (xem test/studio.test.ts)
     const res = await api()
       .post("/api/lms/progress/complete")
       .set(auth(student.token))
-      .send({ learnerId: outsider.id, courseId: lecturerCourseId, lessonId: "lesson-1", score: 95 });
-    expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(res.body.progress).toBe(50);
-
-    const lecturerTry = await api()
-      .post("/api/lms/progress/complete")
-      .set(auth(lecturer.token))
-      .send({ courseId: lecturerCourseId, lessonId: "lesson-1", score: 95 });
-    expect(lecturerTry.status).toBe(403);
+      .send({ courseId: lecturerCourseId, lessonId: "lesson-1", score: 100 });
+    expect(res.status).toBe(404);
   });
 
   it("stores xAPI events against the signed-in user", async () => {

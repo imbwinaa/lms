@@ -5,6 +5,7 @@ import uploadRouter from "./upload";
 import lmsRouter from "./lms";
 import accountsRouter from "./accounts";
 import contentRouter from "./content";
+import studioRouter from "./studio";
 import { authenticate } from "../middlewares/auth";
 import { notFoundHandler } from "../lib/http";
 
@@ -20,6 +21,7 @@ router.use(authenticate);
 router.use(lmsRouter);
 router.use(accountsRouter);
 router.use(contentRouter);
+router.use(studioRouter);
 router.use(notFoundHandler);
 
 export default router;

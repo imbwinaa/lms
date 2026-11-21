@@ -11,14 +11,15 @@
  *
  * OpenAPI spec version: 0.2.0
  */
+import type { CourseSection } from './courseSection';
+import type { OutlineProgress } from './outlineProgress';
 
-export interface LessonCompletionInput {
+export interface CourseOutline {
   courseId: number;
-  /** @minLength 1 */
-  lessonId: string;
-  /**
-     * @minimum 0
-     * @maximum 100
-     */
-  score: number;
+  /** Current user is the instructor or an admin */
+  canEdit: boolean;
+  /** Current user is enrolled as a student */
+  enrolled: boolean;
+  sections: CourseSection[];
+  progress: OutlineProgress;
 }

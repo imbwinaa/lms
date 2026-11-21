@@ -22,12 +22,14 @@ export interface CourseInput {
   category: string;
   level: CourseLevel;
   duration: string;
-  /** @minimum 1 */
-  lessons: number;
+  /** Deprecated and ignored: counted from published lessons */
+  lessons?: number;
   format: CourseFormat;
   /** Admin only; ignored for lecturers */
   instructorId?: number;
   /** @nullable */
   mediaUrl?: string | null;
   mediaType?: MediaType;
+  /** @nullable */
+  coverImageUrl?: string | null;
 }

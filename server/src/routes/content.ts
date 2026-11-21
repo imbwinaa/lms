@@ -16,6 +16,8 @@ import { canManageCourse, findAssignment, loadCourseForRead, loadCourseForWrite 
 import { getAvatarInitials, type AuthUser } from "../lib/auth";
 import { badRequest, conflict, forbidden, notFound, parseOr400, toIso } from "../lib/http";
 import { currentUser, requireRole } from "../middlewares/auth";
+import { assertSafeUrl } from "../lib/content";
+import { assertLessonInCourse } from "./studio";
 import {
   CreateCourseAssignmentBody,
   CreateCourseAssignmentParams,
@@ -45,6 +47,7 @@ function formatMaterial(m: LmsMaterial) {
   return {
     id: m.id,
     courseId: m.courseId,
+    lessonId: m.lessonId ?? null,
     lessonNumber: m.lessonNumber ?? 1,
     title: m.title,
     type: m.type,
@@ -134,11 +137,14 @@ router.post("/lms/courses/:id/materials", async (req, res) => {
   const { id } = parseOr400(CreateCourseMaterialParams, req.params);
   const body = parseOr400(CreateCourseMaterialBody, req.body);
   await loadCourseForWrite(user, id);
+  if (body.lessonId !== undefined) await assertLessonInCourse(body.lessonId, id);
+  body.fileUrl = assertSafeUrl(body.fileUrl, "Đường dẫn tài liệu") ?? body.fileUrl;
 
   const [inserted] = await db
     .insert(lmsMaterialsTable)
     .values({
       courseId: id,
+      lessonId: body.lessonId ?? null,
       lessonNumber: body.lessonNumber ?? 1,
       title: body.title.trim(),
       type: body.type,
