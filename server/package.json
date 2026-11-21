@@ -10,7 +10,8 @@
     "db:push": "drizzle-kit push --config ./drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config ./drizzle.config.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "set-password": "tsx src/scripts/set-password.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1173.0",

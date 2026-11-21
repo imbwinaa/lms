@@ -23,5 +23,9 @@
     "orval": "^8.48.0",
     "prettier": "^3.5.0",
     "typescript": "~5.7.0"
+  },
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=22"
   }
 }

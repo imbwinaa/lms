@@ -15,7 +15,18 @@ import {
 } from "../db";
 import { hashPassword } from "./auth";
 
-const defaultPasswordHash = hashPassword("123456");
+// Mật khẩu ban đầu của các tài khoản mẫu. Bắt buộc đặt SEED_DEFAULT_PASSWORD ở production.
+const seedPassword = process.env.SEED_DEFAULT_PASSWORD || "123456";
+const defaultPasswordHash = hashPassword(seedPassword);
+
+function assertSafeSeedPassword() {
+  if (process.env.NODE_ENV === "production" && !process.env.SEED_DEFAULT_PASSWORD) {
+    throw new Error(
+      "Cơ sở dữ liệu trống: hãy đặt biến môi trường SEED_DEFAULT_PASSWORD (≥ 8 ký tự) trước khi khởi tạo dữ liệu ở production, " +
+        "nếu không tài khoản admin mẫu sẽ dùng mật khẩu công khai 123456.",
+    );
+  }
+}
 
 const courseSeed = [
   {
@@ -365,6 +376,7 @@ async function seedLmsData(): Promise<void> {
     return;
   }
 
+  assertSafeSeedPassword();
   await db.insert(lmsCoursesTable).values(courseSeed);
   await db.insert(lmsLearnersTable).values(learnerSeed);
   await db.insert(lmsLearningPathsTable).values([
