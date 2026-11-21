@@ -46,6 +46,8 @@ import type {
   ConflictResponse,
   Course,
   CourseInput,
+  CourseOutline,
+  CourseSection,
   CourseUpdate,
   DashboardSummary,
   DemoLoginInput,
@@ -61,8 +63,10 @@ import type {
   LearnerBadge,
   LearningPath,
   LearningPlugin,
-  LessonCompletionInput,
+  Lesson,
   LessonCompletionResult,
+  LessonInput,
+  LessonUpdate,
   ListMySubmissionsParams,
   LoginInput,
   Material,
@@ -70,6 +74,11 @@ import type {
   MediaPreset,
   MessageResponse,
   NotFoundResponse,
+  OutlineOrderInput,
+  QuizAttemptInput,
+  QuizAttemptResult,
+  QuizQuestionsInput,
+  SectionInput,
   Submission,
   SubmissionInput,
   TooManyRequestsResponse,
@@ -2408,25 +2417,26 @@ export function useListLmsPlugins<TData = Awaited<ReturnType<typeof listLmsPlugi
 
 
 
-export const getCompleteLmsLessonUrl = () => {
+export const getGetCourseOutlineUrl = (id: number,) => {
 
 
 
 
-  return `/api/lms/progress/complete`
+  return `/api/lms/courses/${id}/outline`
 }
 
 /**
- * @summary Mark a lesson complete for the current student
+ * The instructor and admins see unpublished lessons; everyone else sees published lessons only.
+ * @summary Sections and lessons of a course, with the current user's progress
  */
-export const completeLmsLesson = async (lessonCompletionInput: LessonCompletionInput, options?: Parameters<typeof customFetch>[1]): Promise<LessonCompletionResult> => {
+export const getCourseOutline = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<CourseOutline> => {
 
-  return customFetch<LessonCompletionResult>(getCompleteLmsLessonUrl(),
+  return customFetch<CourseOutline>(getGetCourseOutlineUrl(id),
   {
     ...options,
-    method: 'POST',
-    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
-    body: JSON.stringify(lessonCompletionInput)
+    method: 'GET'
+
+
   }
 );}
 
@@ -2434,13 +2444,128 @@ export const completeLmsLesson = async (lessonCompletionInput: LessonCompletionI
 
 
 
-export const getCompleteLmsLessonMutationKey = () => ['completeLmsLesson'] as const;
+export const getGetCourseOutlineQueryKey = (id: number,) => {
+    return [
+    `/api/lms/courses/${id}/outline`
+    ] as const;
+    }
 
-export const getCompleteLmsLessonMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeLmsLesson>>, TError,CompleteLmsLessonMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof completeLmsLesson>>, TError,CompleteLmsLessonMutationVariables, TContext> => {
 
-const mutationKey = getCompleteLmsLessonMutationKey();
+export const getGetCourseOutlineQueryOptions = <TData = Awaited<ReturnType<typeof getCourseOutline>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCourseOutline>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCourseOutlineQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCourseOutline>>> = ({ signal }) => getCourseOutline(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCourseOutline>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCourseOutlineQueryResult = NonNullable<Awaited<ReturnType<typeof getCourseOutline>>>
+export type GetCourseOutlineQueryError = ErrorType<ForbiddenResponse | NotFoundResponse>
+
+
+/**
+ * The instructor and admins see unpublished lessons; everyone else sees published lessons only.
+ * @summary Sections and lessons of a course, with the current user's progress
+ */
+export function useGetCourseOutline<TData = Awaited<ReturnType<typeof getCourseOutline>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCourseOutline>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCourseOutline>>,
+          TError,
+          Awaited<ReturnType<typeof getCourseOutline>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * The instructor and admins see unpublished lessons; everyone else sees published lessons only.
+ * @summary Sections and lessons of a course, with the current user's progress
+ */
+export function useGetCourseOutline<TData = Awaited<ReturnType<typeof getCourseOutline>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCourseOutline>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCourseOutline>>,
+          TError,
+          Awaited<ReturnType<typeof getCourseOutline>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * The instructor and admins see unpublished lessons; everyone else sees published lessons only.
+ * @summary Sections and lessons of a course, with the current user's progress
+ */
+export function useGetCourseOutline<TData = Awaited<ReturnType<typeof getCourseOutline>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCourseOutline>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * The instructor and admins see unpublished lessons; everyone else sees published lessons only.
+ * @summary Sections and lessons of a course, with the current user's progress
+ */
+export function useGetCourseOutline<TData = Awaited<ReturnType<typeof getCourseOutline>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCourseOutline>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCourseOutlineQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReorderCourseOutlineUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/courses/${id}/outline/order`
+}
+
+/**
+ * Send every section of the course in the new order, each with the ids of its lessons in order. Lessons may move between sections.
+ * @summary Reorder sections and lessons (instructor or admin)
+ */
+export const reorderCourseOutline = async (id: number,
+    outlineOrderInput: OutlineOrderInput, options?: Parameters<typeof customFetch>[1]): Promise<CourseOutline> => {
+
+  return customFetch<CourseOutline>(getReorderCourseOutlineUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(outlineOrderInput)
+  }
+);}
+
+
+
+
+
+export const getReorderCourseOutlineMutationKey = () => ['reorderCourseOutline'] as const;
+
+export const getReorderCourseOutlineMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderCourseOutline>>, TError,ReorderCourseOutlineMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderCourseOutline>>, TError,ReorderCourseOutlineMutationVariables, TContext> => {
+
+const mutationKey = getReorderCourseOutlineMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -2450,10 +2575,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeLmsLesson>>, CompleteLmsLessonMutationVariables> = (props) => {
-          const {data} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderCourseOutline>>, ReorderCourseOutlineMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
 
-          return  completeLmsLesson(data,requestOptions)
+          return  reorderCourseOutline(id,data,requestOptions)
         }
 
 
@@ -2463,21 +2588,783 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type CompleteLmsLessonMutationResult = NonNullable<Awaited<ReturnType<typeof completeLmsLesson>>>
-    export type CompleteLmsLessonMutationBody = BodyType<LessonCompletionInput>
-    export type CompleteLmsLessonMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
-    export type CompleteLmsLessonMutationVariables = {data: BodyType<LessonCompletionInput>}
+    export type ReorderCourseOutlineMutationResult = NonNullable<Awaited<ReturnType<typeof reorderCourseOutline>>>
+    export type ReorderCourseOutlineMutationBody = BodyType<OutlineOrderInput>
+    export type ReorderCourseOutlineMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type ReorderCourseOutlineMutationVariables = {id: number;data: BodyType<OutlineOrderInput>}
 
-    /** @summary Mark a lesson complete for the current student */
-export const useCompleteLmsLesson = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeLmsLesson>>, TError,CompleteLmsLessonMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+    /**
+ * Send every section of the course in the new order, each with the ids of its lessons in order. Lessons may move between sections.
+ * @summary Reorder sections and lessons (instructor or admin)
+ */
+export const useReorderCourseOutline = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderCourseOutline>>, TError,ReorderCourseOutlineMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof completeLmsLesson>>,
+        Awaited<ReturnType<typeof reorderCourseOutline>>,
         TError,
-        CompleteLmsLessonMutationVariables,
+        ReorderCourseOutlineMutationVariables,
         TContext
       > => {
-      return useMutation(getCompleteLmsLessonMutationOptions(options), queryClient);
+      return useMutation(getReorderCourseOutlineMutationOptions(options), queryClient);
+    }
+
+export const getCreateCourseSectionUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/courses/${id}/sections`
+}
+
+/**
+ * @summary Add a section at the end of the course (instructor or admin)
+ */
+export const createCourseSection = async (id: number,
+    sectionInput: SectionInput, options?: Parameters<typeof customFetch>[1]): Promise<CourseSection> => {
+
+  return customFetch<CourseSection>(getCreateCourseSectionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(sectionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCourseSectionMutationKey = () => ['createCourseSection'] as const;
+
+export const getCreateCourseSectionMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCourseSection>>, TError,CreateCourseSectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCourseSection>>, TError,CreateCourseSectionMutationVariables, TContext> => {
+
+const mutationKey = getCreateCourseSectionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCourseSection>>, CreateCourseSectionMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createCourseSection(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCourseSectionMutationResult = NonNullable<Awaited<ReturnType<typeof createCourseSection>>>
+    export type CreateCourseSectionMutationBody = BodyType<SectionInput>
+    export type CreateCourseSectionMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type CreateCourseSectionMutationVariables = {id: number;data: BodyType<SectionInput>}
+
+    /** @summary Add a section at the end of the course (instructor or admin) */
+export const useCreateCourseSection = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCourseSection>>, TError,CreateCourseSectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createCourseSection>>,
+        TError,
+        CreateCourseSectionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCourseSectionMutationOptions(options), queryClient);
+    }
+
+export const getUpdateCourseSectionUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/sections/${id}`
+}
+
+/**
+ * @summary Rename a section (instructor or admin)
+ */
+export const updateCourseSection = async (id: number,
+    sectionInput: SectionInput, options?: Parameters<typeof customFetch>[1]): Promise<CourseSection> => {
+
+  return customFetch<CourseSection>(getUpdateCourseSectionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(sectionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCourseSectionMutationKey = () => ['updateCourseSection'] as const;
+
+export const getUpdateCourseSectionMutationOptions = <TError = ErrorType<ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCourseSection>>, TError,UpdateCourseSectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCourseSection>>, TError,UpdateCourseSectionMutationVariables, TContext> => {
+
+const mutationKey = getUpdateCourseSectionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCourseSection>>, UpdateCourseSectionMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCourseSection(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCourseSectionMutationResult = NonNullable<Awaited<ReturnType<typeof updateCourseSection>>>
+    export type UpdateCourseSectionMutationBody = BodyType<SectionInput>
+    export type UpdateCourseSectionMutationError = ErrorType<ForbiddenResponse | NotFoundResponse>
+    export type UpdateCourseSectionMutationVariables = {id: number;data: BodyType<SectionInput>}
+
+    /** @summary Rename a section (instructor or admin) */
+export const useUpdateCourseSection = <TError = ErrorType<ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCourseSection>>, TError,UpdateCourseSectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateCourseSection>>,
+        TError,
+        UpdateCourseSectionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateCourseSectionMutationOptions(options), queryClient);
+    }
+
+export const getDeleteCourseSectionUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/sections/${id}`
+}
+
+/**
+ * @summary Delete a section and all its lessons (instructor or admin)
+ */
+export const deleteCourseSection = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getDeleteCourseSectionUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCourseSectionMutationKey = () => ['deleteCourseSection'] as const;
+
+export const getDeleteCourseSectionMutationOptions = <TError = ErrorType<ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCourseSection>>, TError,DeleteCourseSectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCourseSection>>, TError,DeleteCourseSectionMutationVariables, TContext> => {
+
+const mutationKey = getDeleteCourseSectionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCourseSection>>, DeleteCourseSectionMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteCourseSection(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCourseSectionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCourseSection>>>
+
+    export type DeleteCourseSectionMutationError = ErrorType<ForbiddenResponse | NotFoundResponse>
+    export type DeleteCourseSectionMutationVariables = {id: number}
+
+    /** @summary Delete a section and all its lessons (instructor or admin) */
+export const useDeleteCourseSection = <TError = ErrorType<ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCourseSection>>, TError,DeleteCourseSectionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCourseSection>>,
+        TError,
+        DeleteCourseSectionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteCourseSectionMutationOptions(options), queryClient);
+    }
+
+export const getCreateCourseLessonUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/courses/${id}/lessons`
+}
+
+/**
+ * @summary Add an unpublished lesson at the end of a section (instructor or admin)
+ */
+export const createCourseLesson = async (id: number,
+    lessonInput: LessonInput, options?: Parameters<typeof customFetch>[1]): Promise<Lesson> => {
+
+  return customFetch<Lesson>(getCreateCourseLessonUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(lessonInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCourseLessonMutationKey = () => ['createCourseLesson'] as const;
+
+export const getCreateCourseLessonMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCourseLesson>>, TError,CreateCourseLessonMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCourseLesson>>, TError,CreateCourseLessonMutationVariables, TContext> => {
+
+const mutationKey = getCreateCourseLessonMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCourseLesson>>, CreateCourseLessonMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createCourseLesson(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCourseLessonMutationResult = NonNullable<Awaited<ReturnType<typeof createCourseLesson>>>
+    export type CreateCourseLessonMutationBody = BodyType<LessonInput>
+    export type CreateCourseLessonMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type CreateCourseLessonMutationVariables = {id: number;data: BodyType<LessonInput>}
+
+    /** @summary Add an unpublished lesson at the end of a section (instructor or admin) */
+export const useCreateCourseLesson = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCourseLesson>>, TError,CreateCourseLessonMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createCourseLesson>>,
+        TError,
+        CreateCourseLessonMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCourseLessonMutationOptions(options), queryClient);
+    }
+
+export const getGetLessonUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/lessons/${id}`
+}
+
+/**
+ * @summary Full lesson content. Quiz answers are only included for the instructor and admins.
+ */
+export const getLesson = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<Lesson> => {
+
+  return customFetch<Lesson>(getGetLessonUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLessonQueryKey = (id: number,) => {
+    return [
+    `/api/lms/lessons/${id}`
+    ] as const;
+    }
+
+
+export const getGetLessonQueryOptions = <TData = Awaited<ReturnType<typeof getLesson>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLesson>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLessonQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLesson>>> = ({ signal }) => getLesson(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLesson>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetLessonQueryResult = NonNullable<Awaited<ReturnType<typeof getLesson>>>
+export type GetLessonQueryError = ErrorType<ForbiddenResponse | NotFoundResponse>
+
+
+/** @summary Full lesson content. Quiz answers are only included for the instructor and admins. */
+export function useGetLesson<TData = Awaited<ReturnType<typeof getLesson>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLesson>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLesson>>,
+          TError,
+          Awaited<ReturnType<typeof getLesson>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/** @summary Full lesson content. Quiz answers are only included for the instructor and admins. */
+export function useGetLesson<TData = Awaited<ReturnType<typeof getLesson>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLesson>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getLesson>>,
+          TError,
+          Awaited<ReturnType<typeof getLesson>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/** @summary Full lesson content. Quiz answers are only included for the instructor and admins. */
+export function useGetLesson<TData = Awaited<ReturnType<typeof getLesson>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLesson>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/** @summary Full lesson content. Quiz answers are only included for the instructor and admins. */
+export function useGetLesson<TData = Awaited<ReturnType<typeof getLesson>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getLesson>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetLessonQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateLessonUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/lessons/${id}`
+}
+
+/**
+ * @summary Edit a lesson (instructor or admin). HTML content is sanitized on the server.
+ */
+export const updateLesson = async (id: number,
+    lessonUpdate: LessonUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Lesson> => {
+
+  return customFetch<Lesson>(getUpdateLessonUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(lessonUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateLessonMutationKey = () => ['updateLesson'] as const;
+
+export const getUpdateLessonMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLesson>>, TError,UpdateLessonMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLesson>>, TError,UpdateLessonMutationVariables, TContext> => {
+
+const mutationKey = getUpdateLessonMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLesson>>, UpdateLessonMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateLesson(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLessonMutationResult = NonNullable<Awaited<ReturnType<typeof updateLesson>>>
+    export type UpdateLessonMutationBody = BodyType<LessonUpdate>
+    export type UpdateLessonMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type UpdateLessonMutationVariables = {id: number;data: BodyType<LessonUpdate>}
+
+    /** @summary Edit a lesson (instructor or admin). HTML content is sanitized on the server. */
+export const useUpdateLesson = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLesson>>, TError,UpdateLessonMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateLesson>>,
+        TError,
+        UpdateLessonMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateLessonMutationOptions(options), queryClient);
+    }
+
+export const getDeleteLessonUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/lessons/${id}`
+}
+
+/**
+ * @summary Delete a lesson (instructor or admin)
+ */
+export const deleteLesson = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getDeleteLessonUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteLessonMutationKey = () => ['deleteLesson'] as const;
+
+export const getDeleteLessonMutationOptions = <TError = ErrorType<ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLesson>>, TError,DeleteLessonMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteLesson>>, TError,DeleteLessonMutationVariables, TContext> => {
+
+const mutationKey = getDeleteLessonMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteLesson>>, DeleteLessonMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteLesson(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteLessonMutationResult = NonNullable<Awaited<ReturnType<typeof deleteLesson>>>
+
+    export type DeleteLessonMutationError = ErrorType<ForbiddenResponse | NotFoundResponse>
+    export type DeleteLessonMutationVariables = {id: number}
+
+    /** @summary Delete a lesson (instructor or admin) */
+export const useDeleteLesson = <TError = ErrorType<ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLesson>>, TError,DeleteLessonMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteLesson>>,
+        TError,
+        DeleteLessonMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteLessonMutationOptions(options), queryClient);
+    }
+
+export const getReplaceQuizQuestionsUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/lessons/${id}/questions`
+}
+
+/**
+ * @summary Replace all questions of a quiz lesson (instructor or admin)
+ */
+export const replaceQuizQuestions = async (id: number,
+    quizQuestionsInput: QuizQuestionsInput, options?: Parameters<typeof customFetch>[1]): Promise<Lesson> => {
+
+  return customFetch<Lesson>(getReplaceQuizQuestionsUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(quizQuestionsInput)
+  }
+);}
+
+
+
+
+
+export const getReplaceQuizQuestionsMutationKey = () => ['replaceQuizQuestions'] as const;
+
+export const getReplaceQuizQuestionsMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceQuizQuestions>>, TError,ReplaceQuizQuestionsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof replaceQuizQuestions>>, TError,ReplaceQuizQuestionsMutationVariables, TContext> => {
+
+const mutationKey = getReplaceQuizQuestionsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replaceQuizQuestions>>, ReplaceQuizQuestionsMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  replaceQuizQuestions(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReplaceQuizQuestionsMutationResult = NonNullable<Awaited<ReturnType<typeof replaceQuizQuestions>>>
+    export type ReplaceQuizQuestionsMutationBody = BodyType<QuizQuestionsInput>
+    export type ReplaceQuizQuestionsMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type ReplaceQuizQuestionsMutationVariables = {id: number;data: BodyType<QuizQuestionsInput>}
+
+    /** @summary Replace all questions of a quiz lesson (instructor or admin) */
+export const useReplaceQuizQuestions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceQuizQuestions>>, TError,ReplaceQuizQuestionsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof replaceQuizQuestions>>,
+        TError,
+        ReplaceQuizQuestionsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReplaceQuizQuestionsMutationOptions(options), queryClient);
+    }
+
+export const getCompleteLessonUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/lessons/${id}/complete`
+}
+
+/**
+ * Quiz lessons are completed by passing a quiz attempt instead.
+ * @summary Mark a video, text or document lesson complete for the current student
+ */
+export const completeLesson = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<LessonCompletionResult> => {
+
+  return customFetch<LessonCompletionResult>(getCompleteLessonUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompleteLessonMutationKey = () => ['completeLesson'] as const;
+
+export const getCompleteLessonMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeLesson>>, TError,CompleteLessonMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeLesson>>, TError,CompleteLessonMutationVariables, TContext> => {
+
+const mutationKey = getCompleteLessonMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeLesson>>, CompleteLessonMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  completeLesson(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteLessonMutationResult = NonNullable<Awaited<ReturnType<typeof completeLesson>>>
+
+    export type CompleteLessonMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type CompleteLessonMutationVariables = {id: number}
+
+    /**
+ * Quiz lessons are completed by passing a quiz attempt instead.
+ * @summary Mark a video, text or document lesson complete for the current student
+ */
+export const useCompleteLesson = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeLesson>>, TError,CompleteLessonMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof completeLesson>>,
+        TError,
+        CompleteLessonMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCompleteLessonMutationOptions(options), queryClient);
+    }
+
+export const getSubmitQuizAttemptUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/lessons/${id}/quiz-attempts`
+}
+
+/**
+ * @summary Submit answers to a quiz lesson. Scored on the server; passing completes the lesson.
+ */
+export const submitQuizAttempt = async (id: number,
+    quizAttemptInput: QuizAttemptInput, options?: Parameters<typeof customFetch>[1]): Promise<QuizAttemptResult> => {
+
+  return customFetch<QuizAttemptResult>(getSubmitQuizAttemptUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(quizAttemptInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitQuizAttemptMutationKey = () => ['submitQuizAttempt'] as const;
+
+export const getSubmitQuizAttemptMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitQuizAttempt>>, TError,SubmitQuizAttemptMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitQuizAttempt>>, TError,SubmitQuizAttemptMutationVariables, TContext> => {
+
+const mutationKey = getSubmitQuizAttemptMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitQuizAttempt>>, SubmitQuizAttemptMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  submitQuizAttempt(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitQuizAttemptMutationResult = NonNullable<Awaited<ReturnType<typeof submitQuizAttempt>>>
+    export type SubmitQuizAttemptMutationBody = BodyType<QuizAttemptInput>
+    export type SubmitQuizAttemptMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type SubmitQuizAttemptMutationVariables = {id: number;data: BodyType<QuizAttemptInput>}
+
+    /** @summary Submit answers to a quiz lesson. Scored on the server; passing completes the lesson. */
+export const useSubmitQuizAttempt = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitQuizAttempt>>, TError,SubmitQuizAttemptMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof submitQuizAttempt>>,
+        TError,
+        SubmitQuizAttemptMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSubmitQuizAttemptMutationOptions(options), queryClient);
     }
 
 export const getRecordXapiEventUrl = () => {

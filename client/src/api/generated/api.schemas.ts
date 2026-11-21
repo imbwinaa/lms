@@ -150,6 +150,7 @@ export interface Course {
   category: string;
   level: CourseLevel;
   duration: string;
+  /** Number of published lessons */
   lessons: number;
   enrolled: number;
   progress: number;
@@ -163,6 +164,11 @@ export interface Course {
   mediaUrl: string | null;
   /** @nullable */
   mediaType: string | null;
+  /**
+     * 16:9 cover used on cards and the course header
+     * @nullable
+     */
+  coverImageUrl: string | null;
 }
 
 export interface CourseInput {
@@ -172,14 +178,16 @@ export interface CourseInput {
   category: string;
   level: CourseLevel;
   duration: string;
-  /** @minimum 1 */
-  lessons: number;
+  /** Deprecated and ignored: counted from published lessons */
+  lessons?: number;
   format: CourseFormat;
   /** Admin only; ignored for lecturers */
   instructorId?: number;
   /** @nullable */
   mediaUrl?: string | null;
   mediaType?: MediaType;
+  /** @nullable */
+  coverImageUrl?: string | null;
 }
 
 export interface CourseUpdate {
@@ -189,7 +197,7 @@ export interface CourseUpdate {
   category?: string;
   level?: CourseLevel;
   duration?: string;
-  /** @minimum 1 */
+  /** Deprecated and ignored: counted from published lessons */
   lessons?: number;
   status?: CourseStatus;
   format?: CourseFormat;
@@ -198,6 +206,8 @@ export interface CourseUpdate {
   /** @nullable */
   mediaUrl?: string | null;
   mediaType?: MediaType;
+  /** @nullable */
+  coverImageUrl?: string | null;
 }
 
 export type AccountStatus = typeof AccountStatus[keyof typeof AccountStatus];
@@ -331,18 +341,8 @@ export interface LearningPlugin {
   icon: string;
 }
 
-export interface LessonCompletionInput {
-  courseId: number;
-  /** @minLength 1 */
-  lessonId: string;
-  /**
-     * @minimum 0
-     * @maximum 100
-     */
-  score: number;
-}
-
 export interface LessonCompletionResult {
+  /** Course progress of the current student, 0-100 */
   progress: number;
   certificateIssued: boolean;
   pointsAwarded: number;
@@ -386,6 +386,12 @@ export const MaterialType = {
 export interface Material {
   id: number;
   courseId: number;
+  /**
+     * Lesson this material belongs to
+     * @nullable
+     */
+  lessonId: number | null;
+  /** Deprecated: use lessonId */
   lessonNumber: number;
   title: string;
   type: MaterialType;
@@ -410,7 +416,12 @@ export interface MaterialInput {
   fileName?: string;
   fileSize?: string;
   description?: string;
-  /** @minimum 1 */
+  /** Lesson of the same course */
+  lessonId?: number;
+  /**
+     * Deprecated: use lessonId
+     * @minimum 1
+     */
   lessonNumber?: number;
 }
 
@@ -491,6 +502,200 @@ export interface GradeInput {
   /** @minimum 0 */
   grade: number;
   feedback?: string;
+}
+
+export type LessonType = typeof LessonType[keyof typeof LessonType];
+
+
+export const LessonType = {
+  video: 'video',
+  text: 'text',
+  document: 'document',
+  quiz: 'quiz',
+} as const;
+
+export interface LessonSummary {
+  id: number;
+  sectionId: number;
+  title: string;
+  type: LessonType;
+  position: number;
+  durationMinutes: number;
+  isPublished: boolean;
+  /** Completed by the current user */
+  completed: boolean;
+}
+
+export interface CourseSection {
+  id: number;
+  courseId: number;
+  title: string;
+  position: number;
+  lessons: LessonSummary[];
+}
+
+export interface OutlineProgress {
+  completed: number;
+  /** Published lessons */
+  total: number;
+  percent: number;
+}
+
+export interface CourseOutline {
+  courseId: number;
+  /** Current user is the instructor or an admin */
+  canEdit: boolean;
+  /** Current user is enrolled as a student */
+  enrolled: boolean;
+  sections: CourseSection[];
+  progress: OutlineProgress;
+}
+
+export interface QuizQuestion {
+  id: number;
+  prompt: string;
+  options: string[];
+  /**
+     * Only sent to the instructor and admins
+     * @nullable
+     */
+  correctIndex: number | null;
+  /**
+     * Only sent to the instructor and admins
+     * @nullable
+     */
+  explanation: string | null;
+}
+
+export interface Lesson {
+  id: number;
+  courseId: number;
+  sectionId: number;
+  title: string;
+  type: LessonType;
+  position: number;
+  /** Sanitized HTML */
+  contentHtml: string;
+  /**
+     * Video or document URL
+     * @nullable
+     */
+  mediaUrl: string | null;
+  durationMinutes: number;
+  isPublished: boolean;
+  /** Quiz pass mark, 0-100 */
+  passScore: number;
+  questions: QuizQuestion[];
+  completed: boolean;
+  /**
+     * Best quiz score of the current user
+     * @nullable
+     */
+  bestScore: number | null;
+  updatedAt: string;
+}
+
+export interface SectionInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title: string;
+}
+
+export interface LessonInput {
+  sectionId: number;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title: string;
+  type: LessonType;
+}
+
+export interface LessonUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title?: string;
+  type?: LessonType;
+  /** @maxLength 200000 */
+  contentHtml?: string;
+  /** @nullable */
+  mediaUrl?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 1440
+     */
+  durationMinutes?: number;
+  isPublished?: boolean;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  passScore?: number;
+}
+
+export type OutlineOrderInputSectionsItem = {
+  id: number;
+  lessonIds: number[];
+};
+
+export interface OutlineOrderInput {
+  sections: OutlineOrderInputSectionsItem[];
+}
+
+export interface QuizQuestionInput {
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  prompt: string;
+  /**
+     * @minItems 2
+     * @maxItems 6
+     * @items.minLength 1
+     * @items.maxLength 500
+     */
+  options: string[];
+  /** @minimum 0 */
+  correctIndex: number;
+  /** @maxLength 1000 */
+  explanation?: string;
+}
+
+export interface QuizQuestionsInput {
+  /** @maxItems 50 */
+  questions: QuizQuestionInput[];
+}
+
+export interface QuizAttemptInput {
+  /**
+     * Chosen option index for each question, in question order
+     * @items.minimum 0
+     */
+  answers: number[];
+}
+
+export interface QuizQuestionResult {
+  questionId: number;
+  chosenIndex: number;
+  correctIndex: number;
+  correct: boolean;
+  /** @nullable */
+  explanation: string | null;
+}
+
+export interface QuizAttemptResult {
+  score: number;
+  passed: boolean;
+  passScore: number;
+  correctCount: number;
+  total: number;
+  results: QuizQuestionResult[];
+  /** Set when this attempt completed the lesson */
+  completion: LessonCompletionResult | null;
 }
 
 export interface MediaPreset {

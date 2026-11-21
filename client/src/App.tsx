@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { RoleProvider, UNAUTHORIZED_EVENT, useRole, type UserRole } from '@/contexts/RoleContext';
 import { AppShell } from '@/components/layout';
+import CourseStudio from '@/pages/CourseStudio';
 import {
   Dashboard,
   Courses,
@@ -48,6 +49,7 @@ const ALL_ROLES: UserRole[] = ['student', 'lecturer', 'admin'];
 const appRoutes: Array<{ path: string; component: ComponentType; roles: UserRole[] }> = [
   { path: '/', component: Dashboard, roles: ALL_ROLES },
   { path: '/dashboard', component: Dashboard, roles: ALL_ROLES },
+  { path: '/courses/:id/studio', component: CourseStudio, roles: ['lecturer', 'admin'] },
   { path: '/courses/:id', component: CourseDetail, roles: ALL_ROLES },
   { path: '/courses', component: Courses, roles: ALL_ROLES },
   { path: '/accounts', component: Accounts, roles: ['lecturer', 'admin'] },

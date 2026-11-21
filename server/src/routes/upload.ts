@@ -35,6 +35,8 @@ const ALLOWED_EXTENSIONS: Record<string, "video" | "audio" | "document" | "scorm
   ".png": "document",
   ".jpg": "document",
   ".jpeg": "document",
+  ".webp": "document",
+  ".gif": "document",
   ".zip": "scorm",
 };
 
