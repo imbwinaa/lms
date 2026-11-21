@@ -1,6 +1,6 @@
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react';
 import { getErrorMessage, invalidateLms, useAutoEnrollLearners } from '@/api';
 import type { Course, Learner } from '@/api';
 import { Button } from '@/components/ui/button';
@@ -51,20 +51,16 @@ export function EnrollDialog({ open, onClose, learners, courses }: EnrollDialogP
   };
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl"
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent
+        aria-describedby={undefined}
+        className="block max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg rounded-2xl bg-card shadow-2xl"
       >
-        <div className="mb-5 flex justify-between">
+        <div className="mb-5 flex justify-between pr-8">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Phòng Đào Tạo</p>
-            <h2 className="mt-1 font-display text-xl font-bold">Ghi danh học viên vào lớp</h2>
+            <DialogTitle className="mt-1 font-display text-xl font-bold leading-tight tracking-normal">Ghi danh học viên vào lớp</DialogTitle>
           </div>
-          <button onClick={onClose} aria-label="Đóng" className="p-2 text-muted-foreground">
-            <X size={18} />
-          </button>
         </div>
         {message && <Notice message={message} error={error} />}
         <Field label="Chọn môn học / bài giảng">
@@ -117,7 +113,7 @@ export function EnrollDialog({ open, onClose, learners, courses }: EnrollDialogP
             {mutation.isPending ? 'Đang ghi danh...' : `Ghi danh ${selected.length} em`}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

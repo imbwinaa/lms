@@ -26,7 +26,7 @@ import {
   getListLmsCoursesQueryKey,
   useListLmsCourses,
   useListCourseLearners,
-  useListLmsLearners,
+  useListLmsAccounts,
 } from '@/api';
 import type { Course } from '@/api';
 import { Button } from '@/components/ui/button';
@@ -104,7 +104,7 @@ export default function CourseDetail() {
   const enrolledLearners = enrolledQuery.data ?? [];
 
   // Danh sách học viên để ghi danh thêm
-  const studentsQuery = useListLmsLearners({ query: { enabled: canManage } });
+  const studentsQuery = useListLmsAccounts({ query: { enabled: canManage } });
   const enrollCandidates = (studentsQuery.data ?? []).filter(l => l.role === 'student');
 
   if (coursesQuery.isLoading) {

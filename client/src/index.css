@@ -320,6 +320,46 @@
     @apply font-sans antialiased bg-background text-foreground;
     font-family: var(--app-font-sans);
   }
+
+  /* Thanh cuộn mảnh, hòa theo theme (sáng/tối) cho toàn bộ ứng dụng */
+  * {
+    --scrollbar-thumb: hsl(var(--muted-foreground) / 0.28);
+    --scrollbar-thumb-hover: hsl(var(--muted-foreground) / 0.5);
+  }
+  [data-sidebar-scroll],
+  [data-sidebar-scroll] * {
+    --scrollbar-thumb: hsl(var(--sidebar-foreground) / 0.16);
+    --scrollbar-thumb-hover: hsl(var(--sidebar-foreground) / 0.32);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+
+  /* Firefox (không hỗ trợ ::-webkit-scrollbar) */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar-thumb) transparent;
+    }
+  }
 }
 
 @layer utilities {

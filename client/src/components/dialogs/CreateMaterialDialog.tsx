@@ -1,6 +1,7 @@
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { X, UploadCloud } from 'lucide-react';
+import { UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -109,20 +110,13 @@ export function CreateMaterialDialog({ open, courseId, onClose, onCreated }: Cre
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in fade-in-0 zoom-in-95">
-        <div className="flex items-center justify-between border-b border-border pb-4">
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent aria-describedby={undefined} className="block w-[calc(100%-2rem)] max-w-lg rounded-2xl bg-card shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border pb-4 pr-8">
           <div>
-            <h3 className="font-display text-lg font-bold">Đăng tài liệu bài giảng mới</h3>
+            <DialogTitle className="font-display text-lg font-bold leading-tight tracking-normal">Đăng tài liệu bài giảng mới</DialogTitle>
             <p className="text-xs text-muted-foreground">Chia sẻ Slide, tài liệu PDF, tài liệu đọc hoặc link video cho học viên.</p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Đóng"
-          >
-            <X size={18} />
-          </button>
         </div>
 
         {feedback && (
@@ -213,7 +207,7 @@ export function CreateMaterialDialog({ open, courseId, onClose, onCreated }: Cre
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

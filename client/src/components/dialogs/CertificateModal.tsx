@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Award } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Certificate } from '@/api';
@@ -11,19 +12,16 @@ export function CertificateModal({ certificate, onClose }: CertificateModalProps
   if (!certificate) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-lg rounded-3xl border-4 border-amber-500/30 bg-card p-8 text-center shadow-2xl"
-        onClick={e => e.stopPropagation()}
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent
+        aria-describedby={undefined}
+        className="block w-[calc(100%-2rem)] max-w-lg rounded-3xl border-4 border-amber-500/30 bg-card p-8 text-center shadow-2xl"
       >
         <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-amber-500/15 text-amber-600">
           <Award size={28} />
         </div>
         <p className="mt-3 text-[10px] font-bold uppercase tracking-[.25em] text-primary">Nếp học · Chứng nhận hoàn tất</p>
-        <h2 className="mt-2 font-display text-2xl font-extrabold">{certificate.course}</h2>
+        <DialogTitle className="mt-2 font-display text-2xl font-extrabold leading-tight tracking-normal">{certificate.course}</DialogTitle>
         <p className="mt-2 text-xs text-muted-foreground">Chứng nhận học viên:</p>
         <p className="mt-1 font-display text-xl font-bold text-foreground">{certificate.learner}</p>
         <p className="mt-2 text-xs text-muted-foreground">Đã hoàn thành 100% nội dung và vượt qua bài kiểm tra năng lực.</p>
@@ -45,7 +43,7 @@ export function CertificateModal({ certificate, onClose }: CertificateModalProps
             In chứng chỉ
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

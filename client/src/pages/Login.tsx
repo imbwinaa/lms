@@ -188,7 +188,6 @@ export default function Login() {
             </div>
             )}
 
-            {/* Tài khoản do quản trị viên cấp */}
             <div className="mt-6 text-center text-xs text-muted-foreground">
               Chưa có tài khoản? Vui lòng liên hệ quản trị viên nhà trường để được cấp tài khoản.
             </div>

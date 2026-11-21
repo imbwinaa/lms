@@ -1,6 +1,6 @@
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react';
 import { getErrorMessage, invalidateLms, useCreateLmsCourse, useUpdateLmsCourse } from '@/api';
 import type { Course, CourseInput, MediaType } from '@/api';
 import { Button } from '@/components/ui/button';
@@ -95,26 +95,16 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4"
-      role="presentation"
-      onMouseDown={e => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="max-h-[92dvh] w-full max-w-[550px] overflow-auto rounded-2xl border border-border bg-card p-6 shadow-2xl"
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent
+        aria-describedby={undefined}
+        className="block max-h-[92dvh] w-[calc(100%-2rem)] max-w-[550px] rounded-2xl bg-card shadow-2xl"
       >
-        <div className="mb-5 flex items-start justify-between">
+        <div className="mb-5 flex items-start justify-between pr-8">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[.16em] text-primary">Biên soạn nội dung</p>
-            <h2 className="mt-1 font-display text-2xl font-bold">{course ? 'Chỉnh sửa khóa học' : 'Tạo khóa học mới'}</h2>
+            <DialogTitle className="mt-1 font-display text-2xl font-bold leading-tight tracking-normal">{course ? 'Chỉnh sửa khóa học' : 'Tạo khóa học mới'}</DialogTitle>
           </div>
-          <button onClick={onClose} aria-label="Đóng" className="rounded-lg p-2 text-muted-foreground hover:bg-muted">
-            <X size={18} />
-          </button>
         </div>
         {feedback && <Notice message={feedback} error={err} />}
         <form onSubmit={submit} className="space-y-4">
@@ -214,7 +204,7 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

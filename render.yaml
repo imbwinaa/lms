@@ -32,9 +32,15 @@ services:
         value: /var/data/lms.db
       - key: UPLOADS_DIR
         value: /var/data/uploads
-      # Mật khẩu ban đầu của các tài khoản mẫu (bắt buộc, ≥ 8 ký tự). Render sẽ hỏi khi tạo Blueprint.
+      # Lần khởi động đầu tiên (DB trống) chỉ tạo 1 quản trị viên — không có dữ liệu mẫu.
+      # Render sẽ hỏi 2 giá trị này khi tạo Blueprint.
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      # Mật khẩu ban đầu của quản trị viên đầu tiên (≥ 8 ký tự)
       - key: SEED_DEFAULT_PASSWORD
         sync: false
+      - key: SEED_ADMIN_NAME
+        value: Quản trị viên
       # Chỉ cần khi frontend chạy ở domain khác (VD: Vercel). Phân tách nhiều origin bằng dấu phẩy.
       - key: CORS_ORIGIN
         sync: false

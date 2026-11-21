@@ -50,7 +50,7 @@ pnpm dev
 - Web app: http://localhost:3000 (Vite forwards `/api` and `/uploads` to port 5000)
 - API: http://localhost:5000/api/healthz
 
-On first start the server creates `server/lms.db` and fills it with demo data. Every demo account uses the password `123456`, or `SEED_DEFAULT_PASSWORD` if you set it:
+On first start the server creates `server/lms.db` and fills it with **demo data**: sample courses, students, materials, assignments and certificates. That happens because demo data is on by default outside production (`SEED_DEMO_DATA`). Every demo account uses the password `123456`, or `SEED_DEFAULT_PASSWORD` if you set it:
 
 | Role | Email |
 | --- | --- |
@@ -58,16 +58,16 @@ On first start the server creates `server/lms.db` and fills it with demo data. E
 | Lecturer | `bui.ngan@nova.vn` |
 | Student | `ngann@nova.vn` |
 
-There is no public sign-up. Admins create accounts on the **Người dùng & Phân quyền** (Users) page.
+There is no public sign-up. Admins manage accounts on the **Người dùng & Phân quyền** page (`/accounts`): create, edit, change role, reset password, lock or unlock, and delete.
 
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | Runs the API and the web app with live reload |
 | `pnpm codegen` | Regenerates the API client and server schemas after editing `docs/api-spec.yaml` |
-| `pnpm --filter server test` | Runs the permission tests (uses a temporary database) |
+| `pnpm --filter server test` | Runs the permission and seeding tests (each uses a temporary database) |
 | `pnpm --filter server typecheck` | Type-checks the server |
 | `pnpm build` | Builds the web app into `client/dist` and type-checks the server |
-| `pnpm --filter server set-password <email> <password>` | Resets a user's password and signs them out everywhere |
+| `pnpm --filter server set-password <email> <password>` | Resets a user's password from the command line and signs them out everywhere (useful if no admin can log in) |
 
 To reset local data, stop the server and delete `server/lms.db*`.
 
@@ -106,11 +106,16 @@ The repository includes a Render Blueprint (`render.yaml`) that sets up everythi
 1. **Push the code to GitHub**, including `render.yaml`.
 2. In the Render dashboard, choose **New → Blueprint** and select this repository. Render reads `render.yaml`.
 3. Render asks for the variables marked `sync: false`:
-   - **`SEED_DEFAULT_PASSWORD`** (required): at least 8 characters. It becomes the starting password of the demo accounts, including the admin. The server **refuses to create the database** in production without it.
+   - **`SEED_ADMIN_EMAIL`** (required): the email of the first administrator.
+   - **`SEED_DEFAULT_PASSWORD`** (required): at least 8 characters, the first administrator's starting password.
+
+     In production the database starts **empty except for this one admin**, with no demo courses or students. Without these two values the server refuses to start on an empty database. Both are only read once, when the database is created; changing them later has no effect.
    - **`CORS_ORIGIN`**: leave empty for this setup, because the browser and the API share one origin.
    - **`R2_*`**: leave empty to store uploads on the disk, or fill all of them to use Cloudflare R2.
 4. Click **Apply**. The first build takes a few minutes, mostly compiling `better-sqlite3`.
-5. Open `https://<service-name>.onrender.com`, sign in as `ngan.bui@nova.vn` with your `SEED_DEFAULT_PASSWORD`, and **immediately secure the accounts** (see [Operations](#6-operations-accounts-backups-updates)).
+5. Open `https://<service-name>.onrender.com` and sign in with `SEED_ADMIN_EMAIL` and `SEED_DEFAULT_PASSWORD`. Then **change that password** and create the real accounts (see [Operations](#6-operations-accounts-backups-updates)).
+
+   To try the app with sample data on a throwaway instance, set `SEED_DEMO_DATA=true` *before the first start*. Never do this on the instance that holds real data.
 6. Optional: add your own domain under **Settings → Custom Domains**. Render provides HTTPS automatically.
 
 ### Setting it up by hand instead of with the Blueprint
@@ -125,7 +130,7 @@ Create a **Web Service** from the repository with these settings:
 | Health check path | `/api/healthz` |
 | Instance type | Starter or higher |
 | Disk | Mount path `/var/data`, 1 GB |
-| Environment | `NODE_ENV=production`, `NODE_VERSION=22`, `DATABASE_PATH=/var/data/lms.db`, `UPLOADS_DIR=/var/data/uploads`, `SEED_DEFAULT_PASSWORD=<secret>` |
+| Environment | `NODE_ENV=production`, `NODE_VERSION=22`, `DATABASE_PATH=/var/data/lms.db`, `UPLOADS_DIR=/var/data/uploads`, `SEED_ADMIN_EMAIL=<your email>`, `SEED_DEFAULT_PASSWORD=<secret>` |
 
 The install step uses `NODE_ENV=development` because pnpm skips devDependencies when `NODE_ENV=production`, and the web app build needs `vite`.
 
@@ -192,7 +197,10 @@ Optionally, change the Render build command to skip the web app build: drop `&& 
 | `NODE_ENV` | prod | – | `production` turns on JSON logs and the seed-password check |
 | `DATABASE_PATH` | prod | `./lms.db` | SQLite file. On Render: `/var/data/lms.db` |
 | `UPLOADS_DIR` | prod | `./uploads` | Folder for uploaded files when R2 isn't configured. On Render: `/var/data/uploads` |
-| `SEED_DEFAULT_PASSWORD` | prod | `123456` (dev only) | Starting password of the demo accounts when the database is first created |
+| `SEED_DEMO_DATA` | no | `true` in dev, `false` in production | `true` fills an empty database with sample courses, students and demo accounts. When `false`, only the first admin is created, and demo content is never added later |
+| `SEED_ADMIN_EMAIL` | prod | – | Email of the first admin, created only when the database has no accounts and demo data is off |
+| `SEED_ADMIN_NAME` | no | `Quản trị viên` | Display name of the first admin |
+| `SEED_DEFAULT_PASSWORD` | prod | `123456` (dev only) | Starting password of the first admin, or of all demo accounts when demo data is on. At least 8 characters |
 | `CORS_ORIGIN` | setup B | localhost only | Comma-separated list of frontend origins allowed to call the API |
 | `ENABLE_DEMO_LOGIN` | no | off | `true` turns on one-click demo accounts. **Never in production**: anyone could sign in as admin |
 | `CLIENT_DIST` | no | `../client/dist` | Built web app that Express should serve |
@@ -209,16 +217,20 @@ Optionally, change the Render build command to skip the web app build: drop `&& 
 
 ## 6. Operations: accounts, backups, updates
 
-### Secure the demo accounts after the first deploy
+### First steps after the first deploy
 
-A new database contains five demo accounts that all share `SEED_DEFAULT_PASSWORD`. The app has no "change my password" screen yet, so reset passwords from the server shell. On Render, open the service, then **Shell**, and run:
+1. Sign in with `SEED_ADMIN_EMAIL` and `SEED_DEFAULT_PASSWORD`.
+2. Open **Người dùng & Phân quyền** (`/accounts`). In your own row choose **Đặt lại mật khẩu** to replace the starting password. You stay signed in; any other sessions are signed out.
+3. Choose **Cấp tài khoản mới** to create the lecturer and student accounts. A second admin is a good idea, so someone can still unlock or reset the first one.
+4. Optionally, remove `SEED_DEFAULT_PASSWORD` from the Render environment. It is only read when the database is created.
+
+From the same page an admin can **Sửa thông tin** (edit name, email, class), change the role, **Khóa tài khoản** (lock, which also signs the user out everywhere), unlock, reset a password, and **Xóa tài khoản** (permanent: it also deletes that user's enrollments, submissions and badges). The app always keeps at least one active admin.
+
+**If no admin can sign in** (forgotten password or locked out), reset the password from the server shell. On Render, open the service, then **Shell**:
 
 ```bash
-pnpm --filter server set-password ngan.bui@nova.vn '<new admin password>'
-pnpm --filter server set-password bui.ngan@nova.vn '<new password>'
+pnpm --filter server set-password admin@your-school.edu.vn '<new password>'
 ```
-
-The script also signs that user out of every device. Then create real accounts in the app (**Người dùng & Phân quyền**, then **Cấp tài khoản mới**). Accounts can't be deleted yet, so reset the passwords of any demo accounts you don't use.
 
 ### Backups
 
@@ -241,7 +253,8 @@ Push to the branch Render deploys from (usually `main`). Render rebuilds and res
 
 | Symptom | Fix |
 | --- | --- |
-| Deploy fails with *"Cơ sở dữ liệu trống: hãy đặt biến môi trường SEED_DEFAULT_PASSWORD…"* | Set `SEED_DEFAULT_PASSWORD` in the Render environment and redeploy |
+| Deploy fails with *"Cơ sở dữ liệu chưa có tài khoản nào: hãy đặt SEED_ADMIN_EMAIL…"* or *"Hãy đặt SEED_DEFAULT_PASSWORD…"* | Set `SEED_ADMIN_EMAIL` and an 8+ character `SEED_DEFAULT_PASSWORD` in the Render environment, then redeploy |
+| Sample courses or students appear in production | The database was created with `SEED_DEMO_DATA=true`. Delete the demo accounts and courses on the Accounts and Courses pages, or start over with an empty disk |
 | Build fails with `vite: not found` | The install step ran with `NODE_ENV=production`. Keep `NODE_ENV=development` in front of `pnpm install` in the build command |
 | Build fails on `corepack` or on the pnpm version | Make sure the build command starts with `npm install -g corepack@latest && corepack enable`, and that `package.json` keeps its `packageManager` field |
 | `better-sqlite3` error at startup (*"Could not locate the bindings file"*) | The native module wasn't built. Check that `pnpm-workspace.yaml` still allows the `better-sqlite3` build, and clear the build cache (**Manual Deploy → Clear build cache & deploy**) |
