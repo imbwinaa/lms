@@ -1,9 +1,11 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
+import type { ComponentType } from 'react';
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
+import { ApiError } from '@/api';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { RoleProvider } from '@/contexts/RoleContext';
+import { RoleProvider, UNAUTHORIZED_EVENT, useRole, type UserRole } from '@/contexts/RoleContext';
 import { AppShell } from '@/components/layout';
 import {
   Dashboard,
@@ -17,11 +19,87 @@ import {
   LearningPortal,
   Plugins,
   Login,
-  Signup,
   NotFound,
 } from '@/pages';
 
-const queryClient = new QueryClient();
+// 401 từ bất kỳ request nào -> phát sự kiện để RoleProvider đăng xuất
+function notifyUnauthorized(error: unknown) {
+  if (error instanceof ApiError && error.status === 401) {
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+  }
+}
+
+const queryClient = new QueryClient({
+  queryCache: new QueryCache({ onError: notifyUnauthorized }),
+  mutationCache: new MutationCache({ onError: notifyUnauthorized }),
+  defaultOptions: {
+    queries: {
+      // Không thử lại với lỗi phía client (401/403/404...)
+      retry: (failureCount, error) =>
+        !(error instanceof ApiError && error.status >= 400 && error.status < 500) && failureCount < 2,
+      staleTime: 15_000,
+    },
+  },
+});
+
+const ALL_ROLES: UserRole[] = ['student', 'lecturer', 'admin'];
+
+/** Quyền truy cập từng trang (khớp với menu trong AppShell) */
+const appRoutes: Array<{ path: string; component: ComponentType; roles: UserRole[] }> = [
+  { path: '/', component: Dashboard, roles: ALL_ROLES },
+  { path: '/dashboard', component: Dashboard, roles: ALL_ROLES },
+  { path: '/courses/:id', component: CourseDetail, roles: ALL_ROLES },
+  { path: '/courses', component: Courses, roles: ALL_ROLES },
+  { path: '/learners', component: Learners, roles: ['lecturer', 'admin'] },
+  { path: '/paths', component: Paths, roles: ALL_ROLES },
+  { path: '/certificates', component: Certificates, roles: ALL_ROLES },
+  { path: '/leaderboard', component: Leaderboard, roles: ALL_ROLES },
+  { path: '/gamification', component: Gamification, roles: ALL_ROLES },
+  { path: '/plugins', component: Plugins, roles: ['admin'] },
+  { path: '/learn', component: LearningPortal, roles: ALL_ROLES },
+];
+
+function FullPageSpinner() {
+  return (
+    <div className="grid min-h-[100dvh] place-items-center bg-background text-sm text-muted-foreground">
+      Đang kiểm tra phiên đăng nhập...
+    </div>
+  );
+}
+
+function ProtectedApp() {
+  const { isAuthenticated, isLoading, role } = useRole();
+  const [location] = useLocation();
+
+  if (isLoading) return <FullPageSpinner />;
+  if (!isAuthenticated) {
+    const next = location && location !== '/' ? `?next=${encodeURIComponent(location)}` : '';
+    return <Redirect to={`/login${next}`} replace />;
+  }
+
+  return (
+    <AppShell>
+      <Switch>
+        {appRoutes.map(({ path, component: Page, roles }) => (
+          <Route key={path} path={path}>
+            {roles.includes(role) ? <Page /> : <Redirect to="/dashboard" replace />}
+          </Route>
+        ))}
+        <Route component={NotFound} />
+      </Switch>
+    </AppShell>
+  );
+}
+
+function LoginRoute() {
+  const { isAuthenticated, isLoading } = useRole();
+  if (isLoading) return <FullPageSpinner />;
+  if (isAuthenticated) {
+    const next = new URLSearchParams(window.location.search).get('next');
+    return <Redirect to={next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'} replace />;
+  }
+  return <Login />;
+}
 
 function Router() {
   const [location] = useLocation();
@@ -29,25 +107,12 @@ function Router() {
   return (
     <ErrorBoundary resetKey={location}>
       <Switch>
-        <Route path="/login" component={Login} />
-        <Route path="/signup" component={Signup} />
+        <Route path="/login" component={LoginRoute} />
+        <Route path="/signup">
+          <Redirect to="/login" replace />
+        </Route>
         <Route>
-          <AppShell>
-            <Switch>
-              <Route path="/" component={Dashboard} />
-              <Route path="/dashboard" component={Dashboard} />
-              <Route path="/courses/:id" component={CourseDetail} />
-              <Route path="/courses" component={Courses} />
-              <Route path="/learners" component={Learners} />
-              <Route path="/paths" component={Paths} />
-              <Route path="/certificates" component={Certificates} />
-              <Route path="/leaderboard" component={Leaderboard} />
-              <Route path="/gamification" component={Gamification} />
-              <Route path="/plugins" component={Plugins} />
-              <Route path="/learn" component={LearningPortal} />
-              <Route component={NotFound} />
-            </Switch>
-          </AppShell>
+          <ProtectedApp />
         </Route>
       </Switch>
     </ErrorBoundary>

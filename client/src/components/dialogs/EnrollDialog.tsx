@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
-import {
-  getGetLmsDashboardQueryKey,
-  getListLmsCoursesQueryKey,
-  getListLmsLearnersQueryKey,
-  useAutoEnrollLearners,
-} from '@/api';
+import { getErrorMessage, invalidateLms, useAutoEnrollLearners } from '@/api';
 import type { Course, Learner } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Notice, Avatar, Field } from '@/components/common';
@@ -44,14 +39,12 @@ export function EnrollDialog({ open, onClose, learners, courses }: EnrollDialogP
       { data: { courseId: Number(courseId), learnerIds: selected } },
       {
         onSuccess: result => {
-          qc.invalidateQueries({ queryKey: getListLmsLearnersQueryKey() });
-          qc.invalidateQueries({ queryKey: getListLmsCoursesQueryKey() });
-          qc.invalidateQueries({ queryKey: getGetLmsDashboardQueryKey() });
+          void invalidateLms(qc);
           setMessage(`${result.message} (${result.enrolled} học sinh mới ghi danh).`);
         },
-        onError: () => {
+        onError: err => {
           setError(true);
-          setMessage('Không thể tự động ghi danh. Vui lòng thử lại.');
+          setMessage(getErrorMessage(err, 'Không thể tự động ghi danh. Vui lòng thử lại.'));
         },
       }
     );

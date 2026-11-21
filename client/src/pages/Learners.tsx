@@ -1,46 +1,53 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Users } from 'lucide-react';
+import { Plus, Search, UserPlus, Users } from 'lucide-react';
 import {
+  getErrorMessage,
   getListLmsCoursesQueryKey,
   getListLmsLearnersQueryKey,
+  invalidateLms,
   useListLmsCourses,
   useListLmsLearners,
+  useUpdateLmsLearnerRole,
+  type UserRole,
 } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Heading, Notice, QueryState, Avatar } from '@/components/common';
-import { EnrollDialog } from '@/components/dialogs';
+import { CreateAccountDialog, EnrollDialog } from '@/components/dialogs';
 import { useRole } from '@/contexts/RoleContext';
 
 export default function Learners() {
-  const { role } = useRole();
+  const { role, user, canManageCourse } = useRole();
   const q = useListLmsLearners({ query: { queryKey: getListLmsLearnersQueryKey() } });
   const c = useListLmsCourses({ query: { queryKey: getListLmsCoursesQueryKey() } });
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [enrollOpen, setEnrollOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [roleMsg, setRoleMsg] = useState('');
+  const [roleError, setRoleError] = useState(false);
+  const updateRole = useUpdateLmsLearnerRole();
+
+  // Chỉ ghi danh học viên vào khóa học mình phụ trách (admin: mọi khóa)
+  const enrollableCourses = (c.data ?? []).filter(course => canManageCourse(course));
+  const students = (q.data ?? []).filter(l => l.role === 'student');
 
   const learners = (q.data ?? []).filter(l =>
     `${l.name} ${l.email} ${l.team}`.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleUpdateRole = async (userId: number, newRole: string) => {
+  const handleUpdateRole = async (userId: number, newRole: UserRole) => {
+    setRoleError(false);
     try {
-      const res = await fetch(`/api/lms/learners/${userId}/role`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: newRole }),
-      });
-      if (res.ok) {
-        qc.invalidateQueries({ queryKey: getListLmsLearnersQueryKey() });
-        setRoleMsg('Đã cập nhật phân quyền người dùng thành công.');
-        setTimeout(() => setRoleMsg(''), 3000);
-      }
-    } catch {
-      setRoleMsg('Chưa thể đổi vai trò. Vui lòng thử lại.');
+      await updateRole.mutateAsync({ id: userId, data: { role: newRole } });
+      await invalidateLms(qc);
+      setRoleMsg('Đã cập nhật phân quyền người dùng thành công.');
+      setTimeout(() => setRoleMsg(''), 3000);
+    } catch (err) {
+      setRoleError(true);
+      setRoleMsg(getErrorMessage(err, 'Chưa thể đổi vai trò. Vui lòng thử lại.'));
     }
   };
 
@@ -50,7 +57,7 @@ export default function Learners() {
     role === 'student'
       ? 'Những người bạn cùng lớp đang đồng hành cùng bạn trên hành trình học tập.'
       : role === 'lecturer'
-      ? 'Theo dõi mức độ chuyên cần, bài tập và tiến độ của từng học sinh do Cô Bui Ngan phụ trách.'
+      ? 'Theo dõi mức độ chuyên cần, bài tập và tiến độ của học sinh.'
       : 'Danh sách thành viên toàn trường. Quản trị viên có quyền cấp quyền Giảng viên hoặc Quản trị viên.';
 
   return (
@@ -60,15 +67,21 @@ export default function Learners() {
         title={title}
         description={description}
         action={
-          role !== 'student' && (
-            <Button onClick={() => setEnrollOpen(true)} disabled={!q.data?.length || !c.data?.length}>
+          <div className="flex flex-wrap gap-2">
+            {role === 'admin' && (
+              <Button variant="outline" onClick={() => setCreateOpen(true)}>
+                <UserPlus size={16} className="mr-2" />
+                Cấp tài khoản mới
+              </Button>
+            )}
+            <Button onClick={() => setEnrollOpen(true)} disabled={!students.length || !enrollableCourses.length}>
               <Plus size={16} className="mr-2" />
               Ghi danh học viên vào lớp
             </Button>
-          )
+          </div>
         }
       />
-      {roleMsg && <Notice message={roleMsg} onClose={() => setRoleMsg('')} />}
+      {roleMsg && <Notice message={roleMsg} error={roleError} onClose={() => setRoleMsg('')} />}
       <Card className="mb-5 border-card-border shadow-2xs">
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -99,9 +112,7 @@ export default function Learners() {
             <span>{role === 'admin' ? 'Vai trò / Quyền' : 'Tiến độ'}</span>
           </div>
           {learners.map(l => {
-            const userRole =
-              (l as any).role ??
-              (l.name.includes('Cô') ? (l.name.includes('Ngân Bùi') ? 'admin' : 'lecturer') : 'student');
+            const userRole = l.role;
             return (
               <div
                 key={l.id}
@@ -121,7 +132,9 @@ export default function Learners() {
                   {role === 'admin' ? (
                     <select
                       value={userRole}
-                      onChange={e => handleUpdateRole(l.id, e.target.value)}
+                      disabled={l.id === user.id || updateRole.isPending}
+                      title={l.id === user.id ? 'Không thể tự đổi vai trò của chính mình' : undefined}
+                      onChange={e => handleUpdateRole(l.id, e.target.value as UserRole)}
                       className="h-8 w-full rounded-md border border-input bg-background px-2 text-[11px] font-medium"
                     >
                       <option value="student">🎓 Học viên</option>
@@ -151,9 +164,10 @@ export default function Learners() {
       <EnrollDialog
         open={enrollOpen}
         onClose={() => setEnrollOpen(false)}
-        learners={q.data ?? []}
-        courses={c.data ?? []}
+        learners={students}
+        courses={enrollableCourses}
       />
+      <CreateAccountDialog open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   );
 }

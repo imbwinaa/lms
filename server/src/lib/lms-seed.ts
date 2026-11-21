@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq, isNull } from "drizzle-orm";
 import {
   db,
   lmsActivitiesTable,
@@ -527,9 +527,37 @@ async function seedLmsData(): Promise<void> {
   await ensureMaterialsAndAssignments(courses, learners);
 }
 
+/**
+ * Gán giảng viên phụ trách (instructor_id) cho các khóa học chưa có chủ sở hữu:
+ * ưu tiên giảng viên trùng tên instructor_name, nếu không thì giảng viên đầu tiên.
+ */
+async function backfillCourseInstructors(): Promise<void> {
+  const orphanCourses = await db
+    .select({ id: lmsCoursesTable.id, instructorName: lmsCoursesTable.instructorName })
+    .from(lmsCoursesTable)
+    .where(isNull(lmsCoursesTable.instructorId));
+  if (orphanCourses.length === 0) return;
+
+  const lecturers = await db
+    .select({ id: lmsLearnersTable.id, name: lmsLearnersTable.name })
+    .from(lmsLearnersTable)
+    .where(eq(lmsLearnersTable.role, "lecturer"))
+    .orderBy(asc(lmsLearnersTable.id));
+  const fallback = lecturers[0];
+  if (!fallback) return;
+
+  for (const course of orphanCourses) {
+    const owner = lecturers.find((l) => l.name === course.instructorName) ?? fallback;
+    await db
+      .update(lmsCoursesTable)
+      .set({ instructorId: owner.id, instructorName: owner.name })
+      .where(eq(lmsCoursesTable.id, course.id));
+  }
+}
+
 export function ensureLmsSeeded(): Promise<void> {
   if (!seedPromise) {
-    seedPromise = seedLmsData().catch((error: unknown) => {
+    seedPromise = seedLmsData().then(backfillCourseInstructors).catch((error: unknown) => {
       seedPromise = undefined;
       throw error;
     });

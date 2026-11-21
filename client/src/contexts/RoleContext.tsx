@@ -1,57 +1,38 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { setAuthTokenGetter } from '@/api/custom-fetch';
+import {
+  demoLogin as demoLoginRequest,
+  getAuthConfig,
+  getCurrentUser,
+  getErrorMessage,
+  login as loginRequest,
+  logout as logoutRequest,
+  type AuthUser,
+  type Course,
+} from '@/api';
 
 export type UserRole = 'student' | 'lecturer' | 'admin';
+export type RoleUser = AuthUser;
 
-export interface RoleUser {
-  id: number;
-  name: string;
-  email: string;
-  role: UserRole;
-  team: string;
-  avatar: string;
-  title: string;
-  points?: number;
-  streak?: number;
-  progress?: number;
-}
+const TOKEN_KEY = 'lms_auth_token';
+const USER_KEY = 'lms_user';
+/** Sự kiện phát ra khi API trả 401 (xem App.tsx) */
+export const UNAUTHORIZED_EVENT = 'lms:unauthorized';
 
-export interface SignupData {
-  name: string;
-  email: string;
-  password: string;
-  role: UserRole;
-  team?: string;
-}
-
-export const ROLE_PROFILES: Record<UserRole, RoleUser> = {
-  student: {
-    id: 3,
-    name: 'Ngann',
-    email: 'ngann@nova.vn',
-    role: 'student',
-    team: 'Lớp 10A',
-    avatar: 'NG',
-    title: 'Học viên',
-  },
-  lecturer: {
-    id: 2,
-    name: 'Cô Bui Ngan',
-    email: 'bui.ngan@nova.vn',
-    role: 'lecturer',
-    team: 'Tổ Sư Phạm & Đào Tạo',
-    avatar: 'BN',
-    title: 'Giảng viên phụ trách',
-  },
-  admin: {
-    id: 1,
-    name: 'Cô Ngân Bùi',
-    email: 'ngan.bui@nova.vn',
-    role: 'admin',
-    team: 'Ban Giám Hiệu',
-    avatar: 'NB',
-    title: 'Quản trị viên hệ thống',
-  },
+/** Hồ sơ rỗng khi chưa đăng nhập — không mang quyền gì, chỉ để giao diện không bị lỗi */
+const GUEST_USER: RoleUser = {
+  id: 0,
+  name: 'Khách',
+  email: '',
+  role: 'student',
+  team: '',
+  avatar: '?',
+  title: 'Chưa đăng nhập',
+  points: 0,
+  streak: 0,
+  progress: 0,
+  activeCourse: '',
 };
 
 interface RoleContextType {
@@ -60,238 +41,165 @@ interface RoleContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  /** Chỉ bật khi máy chủ cho phép đăng nhập demo (ENABLE_DEMO_LOGIN=true) */
   canSwitchRole: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
-  signup: (data: SignupData) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
-  setRole: (role: UserRole) => void;
-  switchRole: (role: UserRole) => Promise<void>;
+  switchRole: (role: UserRole) => Promise<{ success: boolean; message?: string }>;
+  /** Giảng viên phụ trách hoặc admin */
+  canManageCourse: (course: Pick<Course, 'instructorId'> | null | undefined) => boolean;
 }
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
-// Đăng ký token getter cho fetch client
-setAuthTokenGetter(() => {
-  return typeof window !== 'undefined' ? localStorage.getItem('lms_auth_token') : null;
-});
+function readStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(key: string, value: string | null) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    // trình duyệt chặn localStorage -> phiên chỉ tồn tại trong bộ nhớ
+  }
+}
+
+// Gắn Bearer token cho mọi request đi qua customFetch (các hook sinh tự động)
+setAuthTokenGetter(() => readStorage(TOKEN_KEY));
 
 export function RoleProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => {
-    return typeof window !== 'undefined' ? localStorage.getItem('lms_auth_token') : null;
-  });
-
-  const [activeUser, setActiveUser] = useState<RoleUser | null>(() => {
-    if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('lms_user');
-      if (savedUser) {
-        try {
-          return JSON.parse(savedUser) as RoleUser;
-        } catch {}
-      }
+  const queryClient = useQueryClient();
+  const [token, setToken] = useState<string | null>(() => readStorage(TOKEN_KEY));
+  const [user, setUser] = useState<RoleUser | null>(() => {
+    const saved = readStorage(USER_KEY);
+    if (!saved) return null;
+    try {
+      return JSON.parse(saved) as RoleUser;
+    } catch {
+      return null;
     }
-    return null;
   });
+  const [isLoading, setIsLoading] = useState<boolean>(() => Boolean(readStorage(TOKEN_KEY)));
+  const [demoLoginEnabled, setDemoLoginEnabled] = useState(false);
 
-  const [role, setRoleState] = useState<UserRole>(() => {
-    if (activeUser) return activeUser.role;
-    const savedRole = localStorage.getItem('lms_active_role') as UserRole;
-    return savedRole && ['student', 'lecturer', 'admin'].includes(savedRole) ? savedRole : 'student';
-  });
+  const applySession = useCallback(
+    (nextToken: string | null, nextUser: RoleUser | null) => {
+      writeStorage(TOKEN_KEY, nextToken);
+      writeStorage(USER_KEY, nextUser ? JSON.stringify(nextUser) : null);
+      setToken(nextToken);
+      setUser(nextUser);
+      // Dữ liệu cũ thuộc về người dùng trước -> xóa cache
+      queryClient.removeQueries({ predicate: q => String(q.queryKey[0]).startsWith('/api/lms') || String(q.queryKey[0]).startsWith('/api/upload') });
+    },
+    [queryClient],
+  );
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  // Đồng bộ phiên đăng nhập từ máy chủ qua GET /api/auth/me
+  // Kiểm tra phiên với máy chủ khi tải trang
   useEffect(() => {
-    let isMounted = true;
-    const verifyAuth = async () => {
-      const currentToken = localStorage.getItem('lms_auth_token');
-      if (!currentToken) {
-        if (isMounted) setIsLoading(false);
-        return;
-      }
+    let active = true;
+    getAuthConfig()
+      .then(cfg => active && setDemoLoginEnabled(cfg.demoLoginEnabled))
+      .catch(() => {});
 
-      try {
-        const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${currentToken}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted && data.success && data.user) {
-            setActiveUser(data.user);
-            setRoleState(data.user.role);
-            localStorage.setItem('lms_user', JSON.stringify(data.user));
-            localStorage.setItem('lms_active_role', data.user.role);
-          }
-        } else {
-          // Phiên hết hạn -> dọn dẹp
-          if (isMounted) {
-            setToken(null);
-            setActiveUser(null);
-            localStorage.removeItem('lms_auth_token');
-            localStorage.removeItem('lms_user');
-          }
-        }
-      } catch (err) {
-        console.warn('Không thể kiểm tra phiên đăng nhập:', err);
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
-
-    verifyAuth();
+    if (!readStorage(TOKEN_KEY)) {
+      setIsLoading(false);
+      return;
+    }
+    getCurrentUser()
+      .then(me => {
+        if (!active) return;
+        setUser(me);
+        writeStorage(USER_KEY, JSON.stringify(me));
+      })
+      .catch(() => {
+        // 401 được xử lý bởi UNAUTHORIZED_EVENT; lỗi mạng -> giữ phiên đã lưu
+      })
+      .finally(() => active && setIsLoading(false));
     return () => {
-      isMounted = false;
+      active = false;
     };
   }, []);
 
-  // 1. Đăng nhập
-  const login = async (email: string, password: string) => {
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        return { success: false, message: data.message || 'Đăng nhập không thành công.' };
-      }
+  // Bất kỳ API nào trả 401 -> phiên hết hạn
+  useEffect(() => {
+    const onUnauthorized = () => {
+      if (readStorage(TOKEN_KEY)) applySession(null, null);
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, [applySession]);
 
-      setToken(data.token);
-      setActiveUser(data.user);
-      setRoleState(data.user.role);
-      localStorage.setItem('lms_auth_token', data.token);
-      localStorage.setItem('lms_user', JSON.stringify(data.user));
-      localStorage.setItem('lms_active_role', data.user.role);
-      if (data.user.role === 'admin') {
-        localStorage.setItem('lms_admin_access', 'true');
-      } else {
-        localStorage.removeItem('lms_admin_access');
-      }
-
-      return { success: true, message: data.message };
-    } catch {
-      return { success: false, message: 'Lỗi kết nối máy chủ khi đăng nhập.' };
-    }
-  };
-
-  // 2. Đăng ký
-  const signup = async (data: SignupData) => {
-    try {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      const result = await res.json();
-      if (!res.ok || !result.success) {
-        return { success: false, message: result.message || 'Đăng ký không thành công.' };
-      }
-
-      setToken(result.token);
-      setActiveUser(result.user);
-      setRoleState(result.user.role);
-      localStorage.setItem('lms_auth_token', result.token);
-      localStorage.setItem('lms_user', JSON.stringify(result.user));
-      localStorage.setItem('lms_active_role', result.user.role);
-
-      return { success: true, message: result.message };
-    } catch {
-      return { success: false, message: 'Lỗi kết nối máy chủ khi đăng ký.' };
-    }
-  };
-
-  // 3. Đăng xuất
-  const logout = async () => {
-    const currentToken = token || localStorage.getItem('lms_auth_token');
-    if (currentToken) {
+  const login = useCallback(
+    async (email: string, password: string) => {
       try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${currentToken}` },
-        });
-      } catch {}
-    }
-    setToken(null);
-    setActiveUser(null);
-    localStorage.removeItem('lms_auth_token');
-    localStorage.removeItem('lms_user');
-    localStorage.removeItem('lms_admin_access');
-  };
-
-  // 4. Chuyển đổi vai trò / Demo fast login
-  const switchRole = async (newRole: UserRole) => {
-    setRoleState(newRole);
-    localStorage.setItem('lms_active_role', newRole);
-    if (newRole === 'admin') {
-      localStorage.setItem('lms_admin_access', 'true');
-    }
-
-    try {
-      const res = await fetch('/api/auth/demo-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: newRole }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.user) {
-          setToken(data.token);
-          setActiveUser(data.user);
-          localStorage.setItem('lms_auth_token', data.token);
-          localStorage.setItem('lms_user', JSON.stringify(data.user));
-          if (data.user.role === 'admin') {
-            localStorage.setItem('lms_admin_access', 'true');
-          }
-          return;
-        }
+        const session = await loginRequest({ email, password });
+        applySession(session.token, session.user);
+        return { success: true, message: session.message };
+      } catch (error) {
+        return { success: false, message: getErrorMessage(error, 'Đăng nhập không thành công.') };
       }
-    } catch {}
-
-    // Fallback nếu không có kết nối
-    const fallbackUser = ROLE_PROFILES[newRole];
-    setActiveUser(fallbackUser);
-    localStorage.setItem('lms_user', JSON.stringify(fallbackUser));
-  };
-
-  const setRole = (newRole: UserRole) => {
-    void switchRole(newRole);
-  };
-
-  // Người dùng hiện tại (nếu có tài khoản đăng nhập thì dùng tài khoản đó, ngược lại fallback sang profile của role)
-  const user: RoleUser = activeUser ?? ROLE_PROFILES[role];
-  const isAuthenticated = Boolean(token && activeUser);
-  const canSwitchRole = Boolean(
-    role === 'admin' ||
-    user.role === 'admin' ||
-    (typeof window !== 'undefined' && localStorage.getItem('lms_admin_access') === 'true')
+    },
+    [applySession],
   );
 
-  return (
-    <RoleContext.Provider
-      value={{
-        role,
-        user,
-        token,
-        isAuthenticated,
-        isLoading,
-        canSwitchRole,
-        login,
-        signup,
-        logout,
-        setRole,
-        switchRole,
-      }}
-    >
-      {children}
-    </RoleContext.Provider>
+  const logout = useCallback(async () => {
+    if (readStorage(TOKEN_KEY)) {
+      try {
+        await logoutRequest();
+      } catch {
+        // bỏ qua: phiên có thể đã hết hạn
+      }
+    }
+    applySession(null, null);
+  }, [applySession]);
+
+  const switchRole = useCallback(
+    async (role: UserRole) => {
+      if (!demoLoginEnabled) return { success: false, message: 'Đăng nhập demo đang tắt.' };
+      try {
+        const session = await demoLoginRequest({ role });
+        applySession(session.token, session.user);
+        return { success: true, message: session.message };
+      } catch (error) {
+        return { success: false, message: getErrorMessage(error, 'Không thể đăng nhập demo.') };
+      }
+    },
+    [applySession, demoLoginEnabled],
   );
+
+  const value = useMemo<RoleContextType>(() => {
+    const current = user ?? GUEST_USER;
+    return {
+      role: current.role,
+      user: current,
+      token,
+      isAuthenticated: Boolean(token && user),
+      isLoading,
+      canSwitchRole: demoLoginEnabled,
+      login,
+      logout,
+      switchRole,
+      canManageCourse: course =>
+        Boolean(user && course && (user.role === 'admin' || (user.role === 'lecturer' && course.instructorId === user.id))),
+    };
+  }, [user, token, isLoading, demoLoginEnabled, login, logout, switchRole]);
+
+  return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
 }
 
 export function useRole() {
   const context = useContext(RoleContext);
-  if (!context) {
-    throw new Error('useRole must be used within a RoleProvider');
-  }
+  if (!context) throw new Error('useRole must be used within a RoleProvider');
   return context;
+}
+
+/** Ẩn/hiện nội dung theo vai trò */
+export function RequireRole({ roles, children, fallback = null }: { roles: UserRole[]; children: ReactNode; fallback?: ReactNode }) {
+  const { role, isAuthenticated } = useRole();
+  return <>{isAuthenticated && roles.includes(role) ? children : fallback}</>;
 }

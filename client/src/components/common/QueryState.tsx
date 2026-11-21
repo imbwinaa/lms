@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Layers3, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ApiError, getErrorMessage } from '@/api';
 
 export function LoadingState() {
   return (
@@ -33,7 +34,11 @@ export function QueryState({
           <RefreshCw size={18} />
         </div>
         <h3 className="font-display text-base font-bold">Chưa thể tải dữ liệu</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Vui lòng kiểm tra lại kết nối và thử lại nhé.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {error instanceof ApiError && error.status < 500
+            ? getErrorMessage(error)
+            : 'Vui lòng kiểm tra lại kết nối và thử lại nhé.'}
+        </p>
         <Button onClick={refetch} variant="outline" size="sm" className="mt-4">
           <RefreshCw size={14} className="mr-2" />
           Thử lại

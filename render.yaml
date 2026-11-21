@@ -14,6 +14,10 @@ services:
         value: 10000
       - key: DATABASE_URL
         sync: false
+      # Origin của frontend được phép gọi API (vd: https://nep-hoc.vercel.app)
+      - key: CORS_ORIGIN
+        sync: false
+      # KHÔNG đặt ENABLE_DEMO_LOGIN ở production
       - key: R2_ACCOUNT_ID
         sync: false
       - key: R2_ACCESS_KEY_ID

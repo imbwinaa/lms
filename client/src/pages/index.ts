@@ -9,5 +9,4 @@ export { default as Gamification } from './Gamification';
 export { default as LearningPortal } from './LearningPortal';
 export { default as Plugins } from './Plugins';
 export { default as Login } from './Login';
-export { default as Signup } from './Signup';
 export { default as NotFound } from './not-found';

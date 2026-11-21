@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
-import {
-  getGetLmsDashboardQueryKey,
-  getListLmsCoursesQueryKey,
-  useCreateLmsCourse,
-  useUpdateLmsCourse,
-} from '@/api';
-import type { Course, CourseInput } from '@/api';
+import { getErrorMessage, invalidateLms, useCreateLmsCourse, useUpdateLmsCourse } from '@/api';
+import type { Course, CourseInput, MediaType } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Notice, Field, MediaUploader } from '@/components/common';
@@ -25,7 +20,7 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
   const [feedback, setFeedback] = useState('');
   const [err, setErr] = useState(false);
   const [mediaUrl, setMediaUrl] = useState('');
-  const [mediaType, setMediaType] = useState('video');
+  const [mediaType, setMediaType] = useState<MediaType>('video');
   const [mediaTitle, setMediaTitle] = useState('');
   const [form, setForm] = useState<CourseInput>({
     title: '',
@@ -40,8 +35,8 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
   useEffect(() => {
     if (open) {
       if (course) {
-        setMediaUrl((course as any).mediaUrl || '');
-        setMediaType((course as any).mediaType || 'video');
+        setMediaUrl(course.mediaUrl || '');
+        setMediaType((course.mediaType as MediaType | null) || 'video');
         setMediaTitle('');
       } else {
         setMediaUrl('');
@@ -82,22 +77,21 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
     setFeedback('');
     setErr(false);
     const onSuccess = () => {
-      qc.invalidateQueries({ queryKey: getListLmsCoursesQueryKey() });
-      qc.invalidateQueries({ queryKey: getGetLmsDashboardQueryKey() });
+      void invalidateLms(qc);
       setFeedback(course ? 'Đã cập nhật bài giảng.' : 'Đã tạo khóa học mới.');
       setTimeout(onClose, 650);
     };
-    const onError = () => {
+    const onError = (error: unknown) => {
       setErr(true);
-      setFeedback('Chưa thể lưu khóa học. Vui lòng kiểm tra lại.');
+      setFeedback(getErrorMessage(error, 'Chưa thể lưu khóa học. Vui lòng kiểm tra lại.'));
     };
-    const payload = {
+    const payload: CourseInput = {
       ...form,
-      mediaUrl: mediaUrl || undefined,
-      mediaType: mediaType || 'video',
+      mediaUrl: mediaUrl || null,
+      mediaType,
     };
-    if (course) update.mutate({ id: course.id, data: payload as any }, { onSuccess, onError });
-    else create.mutate({ data: payload as any }, { onSuccess, onError });
+    if (course) update.mutate({ id: course.id, data: payload }, { onSuccess, onError });
+    else create.mutate({ data: payload }, { onSuccess, onError });
   };
 
   return (

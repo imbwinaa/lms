@@ -22,6 +22,9 @@ export const lmsCoursesTable = sqliteTable("lms_courses", {
   format: text("format").notNull().default("Native"),
   accent: text("accent").notNull().default("teal"),
   instructorName: text("instructor_name").notNull().default("Cô Bui Ngan"),
+  // Giảng viên phụ trách (chủ sở hữu khóa học). Khai báo không có FK ở Drizzle
+  // vì lms_learners được định nghĩa phía sau; ràng buộc nằm trong SQL khởi tạo.
+  instructorId: integer("instructor_id"),
   mediaUrl: text("media_url"),
   mediaType: text("media_type").default("video"),
 });

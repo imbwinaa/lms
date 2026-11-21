@@ -15,10 +15,12 @@
     "build": "pnpm --filter client build && pnpm --filter server build",
     "build:server": "pnpm --filter server build",
     "db:push": "pnpm --filter server db:push",
-    "db:studio": "pnpm --filter server db:studio"
+    "db:studio": "pnpm --filter server db:studio",
+    "codegen": "orval --config orval.config.ts"
   },
   "devDependencies": {
     "concurrently": "^10.0.7",
+    "orval": "^8.48.0",
     "prettier": "^3.5.0",
     "typescript": "~5.7.0"
   }

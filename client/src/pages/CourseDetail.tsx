@@ -24,8 +24,8 @@ import {
 } from 'lucide-react';
 import {
   getListLmsCoursesQueryKey,
-  getListLmsLearnersQueryKey,
   useListLmsCourses,
+  useListCourseLearners,
   useListLmsLearners,
 } from '@/api';
 import type { Course } from '@/api';
@@ -60,10 +60,9 @@ const defaultLessonTitles = [
 export default function CourseDetail() {
   const [, params] = useRoute('/courses/:id');
   const [, setLocation] = useLocation();
-  const { role } = useRole();
+  const { role, canManageCourse } = useRole();
 
   const coursesQuery = useListLmsCourses({ query: { queryKey: getListLmsCoursesQueryKey() } });
-  const learnersQuery = useListLmsLearners({ query: { queryKey: getListLmsLearnersQueryKey() } });
 
   const [activeTab, setActiveTab] = useState<'syllabus' | 'materials' | 'assignments' | 'learners'>('syllabus');
   const [courseDialog, setCourseDialog] = useState(false);
@@ -71,7 +70,6 @@ export default function CourseDetail() {
 
   const courseId = params?.id ? Number(params.id) : 0;
   const courses = coursesQuery.data ?? [];
-  const learners = learnersQuery.data ?? [];
 
   // Tìm khóa học theo ID
   const course = useMemo(() => {
@@ -98,13 +96,16 @@ export default function CourseDetail() {
     });
   }, [lessonCount, course?.format]);
 
-  // Lọc học viên thuộc môn học này
-  const enrolledLearners = useMemo(() => {
-    if (!course) return learners.slice(0, 4);
-    // Ưu tiên học viên có activeCourse khớp hoặc lấy mẫu
-    const matched = learners.filter(l => l.activeCourse === course.title);
-    return matched.length > 0 ? matched : learners.slice(0, Math.min(course.enrolled || 4, learners.length));
-  }, [learners, course]);
+  // Quyền quản lý khóa học: giảng viên phụ trách hoặc quản trị viên
+  const canManage = canManageCourse(course);
+
+  // Học viên thật sự đã ghi danh (chỉ người quản lý khóa học được xem danh sách)
+  const enrolledQuery = useListCourseLearners(courseId, { query: { enabled: canManage && courseId > 0 } });
+  const enrolledLearners = enrolledQuery.data ?? [];
+
+  // Danh sách học viên để ghi danh thêm
+  const studentsQuery = useListLmsLearners({ query: { enabled: canManage } });
+  const enrollCandidates = (studentsQuery.data ?? []).filter(l => l.role === 'student');
 
   if (coursesQuery.isLoading) {
     return (
@@ -247,15 +248,17 @@ export default function CourseDetail() {
               <GraduationCap size={14} />
               Bài tập & Nộp bài
             </TabsTrigger>
-            <TabsTrigger value="learners" className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-              <Users size={14} />
-              Học viên ({enrolledLearners.length})
-            </TabsTrigger>
+            {canManage && (
+              <TabsTrigger value="learners" className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                <Users size={14} />
+                Học viên ({enrolledLearners.length})
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Nút Vào bàn học trực tuyến & Các nút thao tác cùng hàng với Tabs */}
           <div className="flex items-center gap-2 shrink-0">
-            {role !== 'student' && (
+            {canManage && (
               <>
                 <Button
                   variant="outline"
@@ -408,7 +411,7 @@ export default function CourseDetail() {
                 Tổng cộng {enrolledLearners.length} học viên tham gia lớp học phần này.
               </p>
             </div>
-            {role !== 'student' && (
+            {canManage && (
               <Button size="sm" onClick={() => setEnrollDialog(true)}>
                 <Plus size={14} className="mr-1.5" />
                 Ghi danh học viên mới
@@ -480,7 +483,7 @@ export default function CourseDetail() {
       <EnrollDialog
         open={enrollDialog}
         onClose={() => setEnrollDialog(false)}
-        learners={learners}
+        learners={enrollCandidates}
         courses={[course]}
       />
     </div>

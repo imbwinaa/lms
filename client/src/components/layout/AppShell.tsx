@@ -231,7 +231,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="flex items-start justify-between p-3.5 pb-2.5 border-b border-border/50">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-xs text-foreground">{user.name}</p>
-                  <p className="truncate text-[10px] text-muted-foreground">{user.email || 'ngann@nova.vn'}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">{user.email}</p>
                 </div>
                 <div className="text-muted-foreground/60 hover:text-foreground cursor-pointer">
                   <Settings2 size={14} />

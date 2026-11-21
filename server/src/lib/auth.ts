@@ -1,26 +1,65 @@
 import crypto from "crypto";
-import { eq, and, gt } from "drizzle-orm";
+import { and, eq, gt, lte } from "drizzle-orm";
 import { db, lmsLearnersTable, lmsSessionsTable, type LmsLearner } from "../db";
 
+export type UserRole = "student" | "lecturer" | "admin";
+export const USER_ROLES: readonly UserRole[] = ["student", "lecturer", "admin"];
+
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 ngày
+
+// ---------------------------------------------------------------------------
+// Mật khẩu: scrypt (mặc định). Vẫn đọc được hash PBKDF2 cũ dạng "salt:hash"
+// và nâng cấp lên scrypt ở lần đăng nhập thành công kế tiếp.
+// ---------------------------------------------------------------------------
+const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1, keylen: 64 } as const;
+
 export function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString("hex");
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
-  return `${salt}:${hash}`;
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(password, salt, SCRYPT_PARAMS.keylen, {
+    N: SCRYPT_PARAMS.N,
+    r: SCRYPT_PARAMS.r,
+    p: SCRYPT_PARAMS.p,
+  });
+  return `scrypt$${SCRYPT_PARAMS.N}$${SCRYPT_PARAMS.r}$${SCRYPT_PARAMS.p}$${salt.toString("hex")}$${hash.toString("hex")}`;
 }
 
-export function verifyPassword(password: string, combinedHash?: string | null): boolean {
-  if (!combinedHash || !combinedHash.includes(":")) return false;
-  const [salt, originalHash] = combinedHash.split(":");
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
-  return hash === originalHash;
+function safeEqualHex(a: string, b: string): boolean {
+  const left = Buffer.from(a, "hex");
+  const right = Buffer.from(b, "hex");
+  return left.length === right.length && left.length > 0 && crypto.timingSafeEqual(left, right);
 }
 
-export function generateToken(): string {
-  return crypto.randomBytes(32).toString("hex");
+export function verifyPassword(password: string, stored?: string | null): boolean {
+  if (!stored) return false;
+
+  if (stored.startsWith("scrypt$")) {
+    const [, n, r, p, salt, hash] = stored.split("$");
+    if (!n || !r || !p || !salt || !hash) return false;
+    const derived = crypto.scryptSync(password, Buffer.from(salt, "hex"), hash.length / 2, {
+      N: Number(n),
+      r: Number(r),
+      p: Number(p),
+    });
+    return safeEqualHex(derived.toString("hex"), hash);
+  }
+
+  // Định dạng cũ: PBKDF2-SHA512, 1000 vòng, "salt:hash"
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  const derived = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
+  return safeEqualHex(derived, hash);
 }
 
+export function needsRehash(stored?: string | null): boolean {
+  return !stored?.startsWith("scrypt$");
+}
+
+// ---------------------------------------------------------------------------
+// Định dạng dữ liệu người dùng trả về (không bao giờ chứa passwordHash)
+// ---------------------------------------------------------------------------
 export function getAvatarInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return (parts[parts.length - 2]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
 }
@@ -31,57 +70,83 @@ export function getUserTitle(role: string): string {
   return "Học viên";
 }
 
-export function sanitizeUser(learner: LmsLearner) {
+export function normalizeRole(role: string | null | undefined): UserRole {
+  return USER_ROLES.includes(role as UserRole) ? (role as UserRole) : "student";
+}
+
+/** Người dùng đã xác thực, gắn vào req.user */
+export function toAuthUser(learner: LmsLearner) {
+  const role = normalizeRole(learner.role);
   return {
     id: learner.id,
     name: learner.name,
     email: learner.email,
-    role: (learner.role || "student") as "student" | "lecturer" | "admin",
+    role,
     team: learner.team,
     avatar: getAvatarInitials(learner.name),
-    title: getUserTitle(learner.role || "student"),
+    title: getUserTitle(role),
     points: learner.points,
     streak: learner.streak,
     progress: learner.progress,
     activeCourse: learner.activeCourse,
   };
 }
+export type AuthUser = ReturnType<typeof toAuthUser>;
+
+/** Bản ghi học viên công khai cho danh sách (schema Learner) */
+export function toPublicLearner(learner: LmsLearner) {
+  return {
+    id: learner.id,
+    name: learner.name,
+    email: learner.email,
+    role: normalizeRole(learner.role),
+    team: learner.team,
+    points: learner.points,
+    streak: learner.streak,
+    progress: learner.progress,
+    activeCourse: learner.activeCourse,
+    lastActive: learner.lastActive,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Phiên đăng nhập
+// ---------------------------------------------------------------------------
+export function generateToken(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
 
 export async function createSession(userId: number): Promise<string> {
   const token = generateToken();
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 ngày
-  await db.insert(lmsSessionsTable).values({
-    token,
-    userId,
-    expiresAt,
-  });
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
+  await db.insert(lmsSessionsTable).values({ token, userId, expiresAt });
   return token;
 }
 
-export async function validateSessionToken(token: string) {
+export async function findUserBySessionToken(token: string): Promise<LmsLearner | null> {
   if (!token) return null;
   const now = new Date().toISOString();
-  const sessions = await db
-    .select()
+  const rows = await db
+    .select({ user: lmsLearnersTable })
     .from(lmsSessionsTable)
+    .innerJoin(lmsLearnersTable, eq(lmsSessionsTable.userId, lmsLearnersTable.id))
     .where(and(eq(lmsSessionsTable.token, token), gt(lmsSessionsTable.expiresAt, now)))
     .limit(1);
-
-  const session = sessions[0];
-  if (!session) return null;
-
-  const users = await db
-    .select()
-    .from(lmsLearnersTable)
-    .where(eq(lmsLearnersTable.id, session.userId))
-    .limit(1);
-
-  const user = users[0];
-  if (!user) return null;
-
-  return sanitizeUser(user);
+  return rows[0]?.user ?? null;
 }
 
 export async function deleteSession(token: string): Promise<void> {
   await db.delete(lmsSessionsTable).where(eq(lmsSessionsTable.token, token));
+}
+
+export async function deleteUserSessions(userId: number): Promise<void> {
+  await db.delete(lmsSessionsTable).where(eq(lmsSessionsTable.userId, userId));
+}
+
+export async function purgeExpiredSessions(): Promise<void> {
+  await db.delete(lmsSessionsTable).where(lte(lmsSessionsTable.expiresAt, new Date().toISOString()));
+}
+
+export function isDemoLoginEnabled(): boolean {
+  return process.env.ENABLE_DEMO_LOGIN === "true";
 }

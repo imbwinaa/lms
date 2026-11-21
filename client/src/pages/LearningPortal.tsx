@@ -17,7 +17,7 @@ import {
   getGetLmsLeaderboardQueryKey,
   getListLmsCertificatesQueryKey,
   getListLmsCoursesQueryKey,
-  getListLmsLearnersQueryKey,
+  getErrorMessage,
   useCompleteLmsLesson,
   useListLmsCourses,
   useRecordXapiEvent,
@@ -38,7 +38,6 @@ export default function LearningPortal() {
   const complete = useCompleteLmsLesson();
   const record = useRecordXapiEvent();
 
-  const [learnerId] = useState('3'); // Mặc định học sinh Ngann (ID: 3)
   const [courseId, setCourseId] = useState('');
   const [lessonNumber, setLessonNumber] = useState(1);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -89,7 +88,6 @@ export default function LearningPortal() {
     record.mutate(
       {
         data: {
-          learnerId: Number(learnerId),
           verb: score >= 70 ? 'http://adlnet.gov/expapi/verbs/completed' : 'http://adlnet.gov/expapi/verbs/answered',
           objectId: `course:${courseId}/lesson:${lessonNumber}`,
           score,
@@ -97,22 +95,35 @@ export default function LearningPortal() {
         },
       },
       {
+        onError: error => {
+          setFailure(true);
+          setFeedback(getErrorMessage(error, 'Chưa thể ghi nhận kết quả. Vui lòng thử lại.'));
+        },
         onSuccess: () => {
           if (score < 70) {
             setFailure(true);
             setFeedback('Chưa đạt 70 điểm. Hệ thống đã lưu lượt thử xAPI — hãy chọn lại đáp án B và nộp lại nhé!');
             return;
           }
+          // Chỉ học viên mới được ghi nhận tiến độ; giảng viên/admin đang xem trước bài giảng
+          if (role !== 'student') {
+            setCompleted(true);
+            setFeedback(`Chế độ xem trước: bài làm đạt ${score} điểm (không ghi nhận tiến độ cho tài khoản ${role === 'admin' ? 'quản trị' : 'giảng viên'}).`);
+            return;
+          }
           complete.mutate(
             {
               data: {
-                learnerId: Number(learnerId),
-                courseId: Number(courseId),
+                      courseId: Number(courseId),
                 lessonId: `lesson-${lessonNumber}`,
                 score,
               },
             },
             {
+              onError: error => {
+                setFailure(true);
+                setFeedback(getErrorMessage(error, 'Chưa thể ghi nhận tiến độ. Vui lòng thử lại.'));
+              },
               onSuccess: result => {
                 setCompleted(true);
                 setFeedback(
@@ -120,7 +131,6 @@ export default function LearningPortal() {
                     result.certificateIssued ? ' · 🎓 Bạn đã được cấp chứng chỉ mới!' : ''
                   }`
                 );
-                qc.invalidateQueries({ queryKey: getListLmsLearnersQueryKey() });
                 qc.invalidateQueries({ queryKey: getListLmsCoursesQueryKey() });
                 qc.invalidateQueries({ queryKey: getGetLmsDashboardQueryKey() });
                 qc.invalidateQueries({ queryKey: getListLmsCertificatesQueryKey() });
@@ -353,12 +363,12 @@ export default function LearningPortal() {
 
             {/* TAB 2: TÀI LIỆU HỌC PHẦN (MATERIALS) */}
             <TabsContent value="materials">
-              <MaterialsTab courseId={Number(courseId) || 1} />
+              {courseId && <MaterialsTab courseId={Number(courseId)} />}
             </TabsContent>
 
             {/* TAB 3: BÀI TẬP & NỘP BÀI (ASSIGNMENTS) */}
             <TabsContent value="assignments">
-              <AssignmentsTab courseId={Number(courseId) || 1} />
+              {courseId && <AssignmentsTab courseId={Number(courseId)} />}
             </TabsContent>
 
             {/* TAB 4: TRẮC NGHIỆM QUIZ GAME */}

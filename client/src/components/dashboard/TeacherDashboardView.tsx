@@ -23,10 +23,13 @@ import {
 } from 'lucide-react';
 import { Link } from 'wouter';
 import {
+  formatDateTime,
   getListLmsCoursesQueryKey,
   useListLmsCourses,
+  useListMyAssignments,
+  useListMySubmissions,
 } from '@/api';
-import type { Course } from '@/api';
+import type { Assignment, Course, Submission } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -35,11 +38,6 @@ import { Progress } from '@/components/ui/progress';
 import { accentBackgrounds, Avatar } from '@/components/common';
 import { useRole } from '@/contexts/RoleContext';
 import {
-  lmsStorage,
-  type AssignmentSubmission,
-  type CourseAssignment,
-} from '@/services/lmsStorage';
-import {
   CourseDialog,
   CreateAssignmentDialog,
   CreateMaterialDialog,
@@ -47,7 +45,7 @@ import {
 } from '@/components/dialogs';
 
 export function TeacherDashboardView() {
-  const { user } = useRole();
+  const { user, canManageCourse } = useRole();
   const coursesQuery = useListLmsCourses({ query: { queryKey: getListLmsCoursesQueryKey() } });
 
   const [search, setSearch] = useState('');
@@ -62,34 +60,26 @@ export function TeacherDashboardView() {
 
   // Grading Dialog states
   const [gradeDialogOpen, setGradeDialogOpen] = useState(false);
-  const [selectedSubmission, setSelectedSubmission] = useState<AssignmentSubmission | null>(null);
-  const [selectedAssignment, setSelectedAssignment] = useState<CourseAssignment | null>(null);
+  const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
-  // Reload trigger for local storage updates
-  const [dataVersion, setDataVersion] = useState(0);
+  // Bài tập & bài nộp thuộc các khóa học do giảng viên phụ trách (máy chủ đã lọc theo quyền)
+  const assignmentsQuery = useListMyAssignments();
+  const pendingQuery = useListMySubmissions({ status: 'submitted' });
 
   const rawCourses = coursesQuery.data ?? [];
 
-  // Filter courses taught by or assigned to teacher
+  // Chỉ các khóa học giảng viên phụ trách (admin: tất cả)
   const teacherCourses = useMemo(() => {
-    return rawCourses.filter(c =>
-      `${c.title} ${c.category} ${c.description}`.toLowerCase().includes(search.toLowerCase())
+    return rawCourses.filter(
+      c =>
+        canManageCourse(c) &&
+        `${c.title} ${c.category} ${c.description}`.toLowerCase().includes(search.toLowerCase())
     );
-  }, [rawCourses, search]);
+  }, [rawCourses, search, canManageCourse]);
 
-  // Assignments & Submissions
-  const allAssignments = useMemo(() => {
-    return lmsStorage.getAssignments();
-  }, [dataVersion]);
-
-  const allSubmissions = useMemo(() => {
-    return lmsStorage.getSubmissions();
-  }, [dataVersion]);
-
-  // Pending grading submissions (status === 'submitted')
-  const pendingSubmissions = useMemo(() => {
-    return allSubmissions.filter(s => s.status === 'submitted' || s.grade === undefined);
-  }, [allSubmissions]);
+  const allAssignments = assignmentsQuery.data ?? [];
+  const pendingSubmissions = pendingQuery.data ?? [];
 
   // Teacher Schedule
   const teachingSchedule = [
@@ -123,24 +113,12 @@ export function TeacherDashboardView() {
   ];
 
   // Handler for grading a specific submission
-  const handleOpenGradeDialog = (sub: AssignmentSubmission) => {
-    const asg = allAssignments.find(a => a.id === sub.assignmentId) || {
-      id: sub.assignmentId,
-      courseId: 1,
-      title: 'Bài tập học phần',
-      description: 'Đánh giá năng lực thực hành',
-      dueDate: '2026-11-28',
-      maxPoints: 10,
-      createdBy: 'Cô Bui Ngan',
-      createdAt: '16-11-2026',
-    };
+  const handleOpenGradeDialog = (sub: Submission) => {
+    const asg = allAssignments.find(a => a.id === sub.assignmentId);
+    if (!asg) return;
     setSelectedSubmission(sub);
     setSelectedAssignment(asg);
     setGradeDialogOpen(true);
-  };
-
-  const handleGraded = () => {
-    setDataVersion(v => v + 1);
   };
 
   // Quick action openers for specific course
@@ -326,11 +304,11 @@ export function TeacherDashboardView() {
                         {/* Student Info & Submission Meta */}
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-2.5">
-                            <Avatar name={sub.studentName} initials={sub.studentAvatar} size="sm" />
+                            <Avatar name={sub.studentName} size="sm" />
                             <div>
                               <p className="text-xs font-bold text-foreground">{sub.studentName}</p>
                               <p className="text-[10px] text-muted-foreground">
-                                Đã nộp lúc: <span className="font-medium text-foreground">{sub.submittedAt}</span>
+                                Đã nộp lúc: <span className="font-medium text-foreground">{formatDateTime(sub.submittedAt)}</span>
                               </p>
                             </div>
                           </div>
@@ -685,7 +663,6 @@ export function TeacherDashboardView() {
         open={assignmentDialogOpen}
         courseId={activeCourseId}
         onClose={() => setAssignmentDialogOpen(false)}
-        onCreated={() => setDataVersion(v => v + 1)}
       />
 
       {/* 3. Create Material Dialog */}
@@ -693,7 +670,6 @@ export function TeacherDashboardView() {
         open={materialDialogOpen}
         courseId={activeCourseId}
         onClose={() => setMaterialDialogOpen(false)}
-        onCreated={() => setDataVersion(v => v + 1)}
       />
 
       {/* 4. Grade Submission Dialog */}
@@ -707,7 +683,6 @@ export function TeacherDashboardView() {
             setSelectedSubmission(null);
             setSelectedAssignment(null);
           }}
-          onGraded={handleGraded}
         />
       )}
     </div>
