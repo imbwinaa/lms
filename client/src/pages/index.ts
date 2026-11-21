@@ -1,7 +1,7 @@
 export { default as Dashboard } from './Dashboard';
 export { default as Courses } from './Courses';
 export { default as CourseDetail } from './CourseDetail';
-export { default as Learners } from './Learners';
+export { default as Accounts } from './Accounts';
 export { default as Paths } from './Paths';
 export { default as Certificates } from './Certificates';
 export { default as Leaderboard } from './Leaderboard';

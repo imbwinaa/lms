@@ -11,7 +11,7 @@ import {
   Dashboard,
   Courses,
   CourseDetail,
-  Learners,
+  Accounts,
   Paths,
   Certificates,
   Leaderboard,
@@ -50,7 +50,7 @@ const appRoutes: Array<{ path: string; component: ComponentType; roles: UserRole
   { path: '/dashboard', component: Dashboard, roles: ALL_ROLES },
   { path: '/courses/:id', component: CourseDetail, roles: ALL_ROLES },
   { path: '/courses', component: Courses, roles: ALL_ROLES },
-  { path: '/learners', component: Learners, roles: ['lecturer', 'admin'] },
+  { path: '/accounts', component: Accounts, roles: ['lecturer', 'admin'] },
   { path: '/paths', component: Paths, roles: ALL_ROLES },
   { path: '/certificates', component: Certificates, roles: ALL_ROLES },
   { path: '/leaderboard', component: Leaderboard, roles: ALL_ROLES },
@@ -85,6 +85,10 @@ function ProtectedApp() {
             {roles.includes(role) ? <Page /> : <Redirect to="/dashboard" replace />}
           </Route>
         ))}
+        {/* Đường dẫn cũ, giữ để không làm hỏng bookmark */}
+        <Route path="/learners">
+          <Redirect to="/accounts" replace />
+        </Route>
         <Route component={NotFound} />
       </Switch>
     </AppShell>

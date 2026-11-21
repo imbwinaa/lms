@@ -270,7 +270,7 @@ export function AdminDashboardView() {
               </h3>
               <div className="grid grid-cols-1 gap-2 pt-1">
                 <Link
-                  href="/learners"
+                  href="/accounts"
                   className="flex items-center justify-between p-2.5 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/50 transition-colors text-xs font-semibold text-foreground"
                 >
                   <div className="flex items-center gap-2">

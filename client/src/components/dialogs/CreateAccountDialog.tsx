@@ -1,10 +1,10 @@
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field, Notice } from '@/components/common';
-import { getErrorMessage, invalidateLms, useCreateLmsLearner, type Learner, type UserRole } from '@/api';
+import { getErrorMessage, invalidateLms, useCreateLmsAccount, type Learner, type UserRole } from '@/api';
 
 export interface CreateAccountDialogProps {
   open: boolean;
@@ -15,7 +15,7 @@ export interface CreateAccountDialogProps {
 /** Quản trị viên cấp tài khoản mới (thay cho tự đăng ký công khai) */
 export function CreateAccountDialog({ open, onClose, onCreated }: CreateAccountDialogProps) {
   const queryClient = useQueryClient();
-  const createAccount = useCreateLmsLearner();
+  const createAccount = useCreateLmsAccount();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('student');
@@ -50,20 +50,13 @@ export function CreateAccountDialog({ open, onClose, onCreated }: CreateAccountD
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in fade-in-0 zoom-in-95">
-        <div className="flex items-center justify-between border-b border-border pb-4">
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent aria-describedby={undefined} className="block w-[calc(100%-2rem)] max-w-md rounded-2xl bg-card shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border pb-4 pr-8">
           <div>
-            <h3 className="font-display text-lg font-bold">Cấp tài khoản mới</h3>
+            <DialogTitle className="font-display text-lg font-bold leading-tight tracking-normal">Cấp tài khoản mới</DialogTitle>
             <p className="text-xs text-muted-foreground">Gửi email và mật khẩu khởi tạo cho người dùng sau khi tạo.</p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Đóng"
-          >
-            <X size={18} />
-          </button>
         </div>
 
         {message && (
@@ -115,7 +108,7 @@ export function CreateAccountDialog({ open, onClose, onCreated }: CreateAccountD
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
