@@ -38,6 +38,7 @@ sqlite.exec(`
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT,
     role TEXT NOT NULL DEFAULT 'student',
+    status TEXT NOT NULL DEFAULT 'active',
     team TEXT NOT NULL,
     points INTEGER NOT NULL DEFAULT 0,
     streak INTEGER NOT NULL DEFAULT 0,
@@ -166,6 +167,7 @@ try { sqlite.exec("ALTER TABLE lms_courses ADD COLUMN media_url TEXT"); } catch 
 try { sqlite.exec("ALTER TABLE lms_courses ADD COLUMN media_type TEXT DEFAULT 'video'"); } catch {}
 try { sqlite.exec("ALTER TABLE lms_learners ADD COLUMN role TEXT NOT NULL DEFAULT 'student'"); } catch {}
 try { sqlite.exec("ALTER TABLE lms_learners ADD COLUMN password_hash TEXT"); } catch {}
+try { sqlite.exec("ALTER TABLE lms_learners ADD COLUMN status TEXT NOT NULL DEFAULT 'active'"); } catch {}
 try { sqlite.exec("ALTER TABLE lms_courses ADD COLUMN instructor_id INTEGER REFERENCES lms_learners(id) ON DELETE SET NULL"); } catch {}
 sqlite.exec("CREATE INDEX IF NOT EXISTS lms_sessions_user_idx ON lms_sessions(user_id)");
 sqlite.exec("CREATE INDEX IF NOT EXISTS lms_courses_instructor_idx ON lms_courses(instructor_id)");

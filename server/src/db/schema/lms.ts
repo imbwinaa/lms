@@ -35,6 +35,8 @@ export const lmsLearnersTable = sqliteTable("lms_learners", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash"),
   role: text("role").notNull().default("student"),
+  // "active" | "locked" — tài khoản bị khóa không thể đăng nhập
+  status: text("status").notNull().default("active"),
   team: text("team").notNull(),
   points: integer("points").notNull().default(0),
   streak: integer("streak").notNull().default(0),

@@ -9,7 +9,7 @@ import {
   CreateLmsCourseResponse,
   GetCurrentUserResponse,
   ListLmsCoursesResponse,
-  ListLmsLearnersResponse,
+  ListLmsAccountsResponse,
   ListMySubmissionsResponse,
   LoginResponse,
   SubmitAssignmentResponse,
@@ -49,7 +49,7 @@ beforeAll(async () => {
     ["outsider@nova.vn", "student"],
   ] as const) {
     const res = await api()
-      .post("/api/lms/learners")
+      .post("/api/lms/accounts")
       .set(auth(admin.token))
       .send({ name: `Test ${role}`, email, role, password: "password123" });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
@@ -147,41 +147,41 @@ describe("authentication", () => {
 
 describe("accounts & roles", () => {
   it("never exposes password hashes in learner lists", async () => {
-    const res = await api().get("/api/lms/learners").set(auth(admin.token));
+    const res = await api().get("/api/lms/accounts").set(auth(admin.token));
     expect(res.status).toBe(200);
-    ListLmsLearnersResponse.parse(res.body);
+    ListLmsAccountsResponse.parse(res.body);
     expect(JSON.stringify(res.body)).not.toMatch(/password/i);
   });
 
   it("forbids students from listing accounts", async () => {
-    expect((await api().get("/api/lms/learners").set(auth(student.token))).status).toBe(403);
+    expect((await api().get("/api/lms/accounts").set(auth(student.token))).status).toBe(403);
   });
 
   it("shows lecturers only students", async () => {
-    const res = await api().get("/api/lms/learners").set(auth(lecturer.token));
+    const res = await api().get("/api/lms/accounts").set(auth(lecturer.token));
     expect(res.status).toBe(200);
     expect(res.body.every((l: { role: string }) => l.role === "student")).toBe(true);
   });
 
   it("only admins can create accounts or change roles", async () => {
     const create = await api()
-      .post("/api/lms/learners")
+      .post("/api/lms/accounts")
       .set(auth(lecturer.token))
       .send({ name: "Nope", email: "nope@nova.vn", role: "admin", password: "password123" });
     expect(create.status).toBe(403);
 
-    const promote = await api().patch(`/api/lms/learners/${student.id}/role`).set(auth(student.token)).send({ role: "admin" });
+    const promote = await api().patch(`/api/lms/accounts/${student.id}/role`).set(auth(student.token)).send({ role: "admin" });
     expect(promote.status).toBe(403);
   });
 
   it("rejects duplicate emails and short passwords", async () => {
     const dup = await api()
-      .post("/api/lms/learners")
+      .post("/api/lms/accounts")
       .set(auth(admin.token))
       .send({ name: "Dup", email: "NGANN@nova.vn", role: "student", password: "password123" });
     expect(dup.status).toBe(409);
     const short = await api()
-      .post("/api/lms/learners")
+      .post("/api/lms/accounts")
       .set(auth(admin.token))
       .send({ name: "Short", email: "short@nova.vn", role: "student", password: "123" });
     expect(short.status).toBe(400);
@@ -189,8 +189,66 @@ describe("accounts & roles", () => {
   });
 
   it("prevents an admin from changing their own role", async () => {
-    const res = await api().patch(`/api/lms/learners/${admin.id}/role`).set(auth(admin.token)).send({ role: "student" });
+    const res = await api().patch(`/api/lms/accounts/${admin.id}/role`).set(auth(admin.token)).send({ role: "student" });
     expect(res.status).toBe(400);
+  });
+
+  it("only admins can edit, lock, reset or delete accounts", async () => {
+    const id = outsider.id;
+    expect((await api().patch(`/api/lms/accounts/${id}`).set(auth(lecturer.token)).send({ team: "X" })).status).toBe(403);
+    expect((await api().patch(`/api/lms/accounts/${id}/status`).set(auth(lecturer.token)).send({ status: "locked" })).status).toBe(403);
+    expect((await api().put(`/api/lms/accounts/${id}/password`).set(auth(student.token)).send({ password: "password999" })).status).toBe(403);
+    expect((await api().delete(`/api/lms/accounts/${id}`).set(auth(lecturer.token))).status).toBe(403);
+  });
+
+  it("protects the acting admin from locking or deleting themselves", async () => {
+    expect((await api().patch(`/api/lms/accounts/${admin.id}/status`).set(auth(admin.token)).send({ status: "locked" })).status).toBe(400);
+    expect((await api().delete(`/api/lms/accounts/${admin.id}`).set(auth(admin.token))).status).toBe(400);
+  });
+
+  it("runs the full account lifecycle: edit, reset password, lock, unlock, delete", async () => {
+    const created = await api()
+      .post("/api/lms/accounts")
+      .set(auth(admin.token))
+      .send({ name: "Lifecycle", email: "lifecycle@nova.vn", role: "student", password: "password123" });
+    expect(created.status).toBe(201);
+    expect(created.body.status).toBe("active");
+    const id = created.body.id as number;
+
+    // Sửa hồ sơ; email trùng bị từ chối
+    const dup = await api().patch(`/api/lms/accounts/${id}`).set(auth(admin.token)).send({ email: "ngann@nova.vn" });
+    expect(dup.status).toBe(409);
+    const edit = await api()
+      .patch(`/api/lms/accounts/${id}`)
+      .set(auth(admin.token))
+      .send({ name: "Lifecycle Edited", email: "Lifecycle2@nova.vn", team: "Lớp 11B" });
+    expect(edit.status, JSON.stringify(edit.body)).toBe(200);
+    expect(edit.body).toMatchObject({ name: "Lifecycle Edited", email: "lifecycle2@nova.vn", team: "Lớp 11B" });
+
+    // Đặt lại mật khẩu: phiên cũ bị thu hồi, mật khẩu cũ hết hiệu lực
+    const before = await login("lifecycle2@nova.vn", "password123");
+    const reset = await api().put(`/api/lms/accounts/${id}/password`).set(auth(admin.token)).send({ password: "newpassword1" });
+    expect(reset.status).toBe(200);
+    expect((await api().get("/api/auth/me").set(auth(before.token))).status).toBe(401);
+    expect((await api().post("/api/auth/login").send({ email: "lifecycle2@nova.vn", password: "password123" })).status).toBe(401);
+    const session = await login("lifecycle2@nova.vn", "newpassword1");
+
+    // Khóa: phiên hiện tại bị thu hồi, không đăng nhập lại được
+    const lock = await api().patch(`/api/lms/accounts/${id}/status`).set(auth(admin.token)).send({ status: "locked" });
+    expect(lock.status).toBe(200);
+    expect(lock.body.status).toBe("locked");
+    expect((await api().get("/api/auth/me").set(auth(session.token))).status).toBe(401);
+    expect((await api().post("/api/auth/login").send({ email: "lifecycle2@nova.vn", password: "newpassword1" })).status).toBe(403);
+
+    // Mở khóa: đăng nhập lại được
+    const unlock = await api().patch(`/api/lms/accounts/${id}/status`).set(auth(admin.token)).send({ status: "active" });
+    expect(unlock.body.status).toBe("active");
+    await login("lifecycle2@nova.vn", "newpassword1");
+
+    // Xóa vĩnh viễn
+    expect((await api().delete(`/api/lms/accounts/${id}`).set(auth(admin.token))).status).toBe(200);
+    expect((await api().delete(`/api/lms/accounts/${id}`).set(auth(admin.token))).status).toBe(404);
+    expect((await api().post("/api/auth/login").send({ email: "lifecycle2@nova.vn", password: "newpassword1" })).status).toBe(401);
   });
 });
 

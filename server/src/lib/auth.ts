@@ -1,9 +1,14 @@
 import crypto from "crypto";
-import { and, eq, gt, lte } from "drizzle-orm";
+import { and, eq, gt, lte, ne } from "drizzle-orm";
 import { db, lmsLearnersTable, lmsSessionsTable, type LmsLearner } from "../db";
 
 export type UserRole = "student" | "lecturer" | "admin";
 export const USER_ROLES: readonly UserRole[] = ["student", "lecturer", "admin"];
+
+export type AccountStatus = "active" | "locked";
+export const normalizeStatus = (status: string | null | undefined): AccountStatus =>
+  status === "locked" ? "locked" : "active";
+export const isAccountLocked = (learner: Pick<LmsLearner, "status">) => normalizeStatus(learner.status) === "locked";
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 ngày
 
@@ -100,6 +105,7 @@ export function toPublicLearner(learner: LmsLearner) {
     name: learner.name,
     email: learner.email,
     role: normalizeRole(learner.role),
+    status: normalizeStatus(learner.status),
     team: learner.team,
     points: learner.points,
     streak: learner.streak,
@@ -130,7 +136,13 @@ export async function findUserBySessionToken(token: string): Promise<LmsLearner 
     .select({ user: lmsLearnersTable })
     .from(lmsSessionsTable)
     .innerJoin(lmsLearnersTable, eq(lmsSessionsTable.userId, lmsLearnersTable.id))
-    .where(and(eq(lmsSessionsTable.token, token), gt(lmsSessionsTable.expiresAt, now)))
+    .where(
+      and(
+        eq(lmsSessionsTable.token, token),
+        gt(lmsSessionsTable.expiresAt, now),
+        ne(lmsLearnersTable.status, "locked"),
+      ),
+    )
     .limit(1);
   return rows[0]?.user ?? null;
 }

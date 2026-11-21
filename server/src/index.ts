@@ -1,12 +1,13 @@
 import "dotenv/config";
 import app from "./app";
 import { logger } from "./lib/logger";
-import { ensureLmsSeeded } from "./lib/lms-seed";
+import { ensureLmsSeeded, isDemoSeedEnabled } from "./lib/lms-seed";
 import { isDemoLoginEnabled, purgeExpiredSessions } from "./lib/auth";
 
 const port = Number(process.env["PORT"]) || 5000;
 
 async function main() {
+  logger.info(isDemoSeedEnabled() ? "Chế độ dữ liệu mẫu (SEED_DEMO_DATA)" : "Chế độ dữ liệu thật: không chèn dữ liệu mẫu");
   await ensureLmsSeeded();
   await purgeExpiredSessions();
   setInterval(() => void purgeExpiredSessions().catch(() => {}), 6 * 60 * 60 * 1000).unref();

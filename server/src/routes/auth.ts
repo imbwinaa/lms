@@ -5,16 +5,19 @@ import {
   createSession,
   deleteSession,
   hashPassword,
+  isAccountLocked,
   isDemoLoginEnabled,
   needsRehash,
   toAuthUser,
   verifyPassword,
 } from "../lib/auth";
-import { HttpError, notFound, parseOr400, unauthorized } from "../lib/http";
+import { HttpError, forbidden, notFound, parseOr400, unauthorized } from "../lib/http";
 import { authenticate, currentUser } from "../middlewares/auth";
 import { DemoLoginBody, LoginBody } from "../schemas";
 
 const authRouter = Router();
+
+const LOCKED_MESSAGE = "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.";
 
 // ---------------------------------------------------------------------------
 // Giới hạn số lần đăng nhập sai (bộ nhớ trong, theo IP + email)
@@ -75,6 +78,7 @@ authRouter.post("/login", async (req, res) => {
     throw unauthorized("Email hoặc mật khẩu không chính xác.");
   }
   loginFailures.delete(key);
+  if (isAccountLocked(user)) throw forbidden(LOCKED_MESSAGE);
 
   await db
     .update(lmsLearnersTable)
@@ -103,6 +107,7 @@ authRouter.post("/demo-login", async (req, res) => {
     [user] = await db.select().from(lmsLearnersTable).where(eq(lmsLearnersTable.role, role)).limit(1);
   }
   if (!user) throw notFound(`Không tìm thấy tài khoản demo cho vai trò ${role}.`);
+  if (isAccountLocked(user)) throw forbidden(LOCKED_MESSAGE);
 
   const token = await createSession(user.id);
   res.json({ message: `Đã chuyển sang tài khoản ${user.name}`, token, user: toAuthUser(user) });

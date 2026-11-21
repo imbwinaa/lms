@@ -3,7 +3,7 @@ import healthRouter from "./health";
 import authRouter from "./auth";
 import uploadRouter from "./upload";
 import lmsRouter from "./lms";
-import learnersRouter from "./learners";
+import accountsRouter from "./accounts";
 import contentRouter from "./content";
 import { authenticate } from "../middlewares/auth";
 import { notFoundHandler } from "../lib/http";
@@ -18,7 +18,7 @@ router.use("/upload", uploadRouter); // tự yêu cầu đăng nhập (trừ pro
 // Mọi endpoint còn lại yêu cầu đăng nhập
 router.use(authenticate);
 router.use(lmsRouter);
-router.use(learnersRouter);
+router.use(accountsRouter);
 router.use(contentRouter);
 router.use(notFoundHandler);
 
