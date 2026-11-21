@@ -12,6 +12,12 @@
  * OpenAPI spec version: 0.2.0
  */
 
+export * from './accountInput';
+export * from './accountPasswordReset';
+export * from './accountRoleUpdate';
+export * from './accountStatus';
+export * from './accountStatusUpdate';
+export * from './accountUpdate';
 export * from './activityItem';
 export * from './activityItemKind';
 export * from './assignment';
@@ -43,8 +49,6 @@ export * from './healthStatus';
 export * from './leaderboardEntry';
 export * from './learner';
 export * from './learnerBadge';
-export * from './learnerInput';
-export * from './learnerRoleUpdate';
 export * from './learningPath';
 export * from './learningPlugin';
 export * from './learningPluginStatus';

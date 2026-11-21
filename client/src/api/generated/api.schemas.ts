@@ -200,11 +200,20 @@ export interface CourseUpdate {
   mediaType?: MediaType;
 }
 
+export type AccountStatus = typeof AccountStatus[keyof typeof AccountStatus];
+
+
+export const AccountStatus = {
+  active: 'active',
+  locked: 'locked',
+} as const;
+
 export interface Learner {
   id: number;
   name: string;
   email: string;
   role: UserRole;
+  status: AccountStatus;
   team: string;
   points: number;
   streak: number;
@@ -213,7 +222,7 @@ export interface Learner {
   lastActive: string;
 }
 
-export interface LearnerInput {
+export interface AccountInput {
   /** @minLength 2 */
   name: string;
   email: string;
@@ -223,8 +232,25 @@ export interface LearnerInput {
   password: string;
 }
 
-export interface LearnerRoleUpdate {
+export interface AccountUpdate {
+  /** @minLength 2 */
+  name?: string;
+  email?: string;
+  /** @minLength 1 */
+  team?: string;
+}
+
+export interface AccountRoleUpdate {
   role: UserRole;
+}
+
+export interface AccountStatusUpdate {
+  status: AccountStatus;
+}
+
+export interface AccountPasswordReset {
+  /** @minLength 8 */
+  password: string;
 }
 
 export interface LearningPath {

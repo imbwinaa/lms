@@ -11,14 +11,11 @@
  *
  * OpenAPI spec version: 0.2.0
  */
-import type { UserRole } from './userRole';
 
-export interface LearnerInput {
+export interface AccountUpdate {
   /** @minLength 2 */
-  name: string;
-  email: string;
-  role: UserRole;
+  name?: string;
+  email?: string;
+  /** @minLength 1 */
   team?: string;
-  /** @minLength 8 */
-  password: string;
 }

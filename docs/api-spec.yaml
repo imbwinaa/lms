@@ -73,6 +73,11 @@ paths:
               schema: { $ref: "#/components/schemas/AuthSession" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: Account is locked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
   /auth/demo-login:
     post:
@@ -91,6 +96,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AuthSession" }
+        "403":
+          description: Account is locked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
         "404": { $ref: "#/components/responses/NotFound" }
   /auth/me:
     get:
@@ -224,15 +234,15 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
-  # ---------------------------------------------------------------- LEARNERS
-  /lms/learners:
+  # ---------------------------------------------------------------- ACCOUNTS
+  /lms/accounts:
     get:
-      operationId: listLmsLearners
+      operationId: listLmsAccounts
       tags: [lms]
       summary: List accounts (admin sees everyone, lecturer sees students)
       responses:
         "200":
-          description: Learner roster
+          description: Account list
           content:
             application/json:
               schema:
@@ -240,14 +250,14 @@ paths:
                 items: { $ref: "#/components/schemas/Learner" }
         "403": { $ref: "#/components/responses/Forbidden" }
     post:
-      operationId: createLmsLearner
+      operationId: createLmsAccount
       tags: [lms]
       summary: Create an account with a role and initial password (admin)
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/LearnerInput" }
+            schema: { $ref: "#/components/schemas/AccountInput" }
       responses:
         "201":
           description: Created account
@@ -257,24 +267,101 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "409": { $ref: "#/components/responses/Conflict" }
-  /lms/learners/{id}/role:
+  /lms/accounts/{id}:
     parameters:
       - $ref: "#/components/parameters/IdPath"
     patch:
-      operationId: updateLmsLearnerRole
+      operationId: updateLmsAccount
       tags: [lms]
-      summary: Change an account's role (admin)
+      summary: Update an account's name, email or team (admin)
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/LearnerRoleUpdate" }
+            schema: { $ref: "#/components/schemas/AccountUpdate" }
       responses:
         "200":
           description: Updated account
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Learner" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    delete:
+      operationId: deleteLmsAccount
+      tags: [lms]
+      summary: Permanently delete an account and its enrollments, submissions and sessions (admin)
+      responses:
+        "200":
+          description: Account deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/accounts/{id}/role:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    patch:
+      operationId: updateLmsAccountRole
+      tags: [lms]
+      summary: Change an account's role (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AccountRoleUpdate" }
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Learner" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/accounts/{id}/status:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    patch:
+      operationId: updateLmsAccountStatus
+      tags: [lms]
+      summary: Lock or unlock an account; locking signs the user out everywhere (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AccountStatusUpdate" }
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Learner" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/accounts/{id}/password:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    put:
+      operationId: resetLmsAccountPassword
+      tags: [lms]
+      summary: Set a new password for an account and sign it out everywhere (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AccountPasswordReset" }
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -863,22 +950,26 @@ components:
         mediaUrl: { type: [string, "null"] }
         mediaType: { $ref: "#/components/schemas/MediaType" }
 
-    # ------------------------------------------------ learners
+    # ------------------------------------------------ accounts
+    AccountStatus:
+      type: string
+      enum: [active, locked]
     Learner:
       type: object
-      required: [id, name, email, role, team, points, streak, progress, activeCourse, lastActive]
+      required: [id, name, email, role, status, team, points, streak, progress, activeCourse, lastActive]
       properties:
         id: { type: integer }
         name: { type: string }
         email: { type: string }
         role: { $ref: "#/components/schemas/UserRole" }
+        status: { $ref: "#/components/schemas/AccountStatus" }
         team: { type: string }
         points: { type: integer }
         streak: { type: integer }
         progress: { type: number }
         activeCourse: { type: string }
         lastActive: { type: string }
-    LearnerInput:
+    AccountInput:
       type: object
       required: [name, email, role, password]
       properties:
@@ -887,11 +978,27 @@ components:
         role: { $ref: "#/components/schemas/UserRole" }
         team: { type: string }
         password: { type: string, minLength: 8 }
-    LearnerRoleUpdate:
+    AccountUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 2 }
+        email: { type: string, format: email }
+        team: { type: string, minLength: 1 }
+    AccountRoleUpdate:
       type: object
       required: [role]
       properties:
         role: { $ref: "#/components/schemas/UserRole" }
+    AccountStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: "#/components/schemas/AccountStatus" }
+    AccountPasswordReset:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, minLength: 8 }
 
     # ------------------------------------------------ catalog / gamification
     LearningPath:

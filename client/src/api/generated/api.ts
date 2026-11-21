@@ -31,6 +31,11 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AccountInput,
+  AccountPasswordReset,
+  AccountRoleUpdate,
+  AccountStatusUpdate,
+  AccountUpdate,
   Assignment,
   AssignmentInput,
   AuthConfig,
@@ -47,14 +52,13 @@ import type {
   DownloadResult,
   EnrollmentInput,
   EnrollmentResult,
+  ErrorResponse,
   ForbiddenResponse,
   GradeInput,
   HealthStatus,
   LeaderboardEntry,
   Learner,
   LearnerBadge,
-  LearnerInput,
-  LearnerRoleUpdate,
   LearningPath,
   LearningPlugin,
   LessonCompletionInput,
@@ -363,7 +367,7 @@ export const login = async (loginInput: LoginInput, options?: Parameters<typeof 
 
 export const getLoginMutationKey = () => ['login'] as const;
 
-export const getLoginMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | TooManyRequestsResponse>,
+export const getLoginMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | TooManyRequestsResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,LoginMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,LoginMutationVariables, TContext> => {
 
@@ -392,11 +396,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type LoginMutationResult = NonNullable<Awaited<ReturnType<typeof login>>>
     export type LoginMutationBody = BodyType<LoginInput>
-    export type LoginMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | TooManyRequestsResponse>
+    export type LoginMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | TooManyRequestsResponse>
     export type LoginMutationVariables = {data: BodyType<LoginInput>}
 
     /** @summary Sign in with email and password */
-export const useLogin = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | TooManyRequestsResponse>,
+export const useLogin = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse | TooManyRequestsResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,LoginMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof login>>,
@@ -435,7 +439,7 @@ export const demoLogin = async (demoLoginInput: DemoLoginInput, options?: Parame
 
 export const getDemoLoginMutationKey = () => ['demoLogin'] as const;
 
-export const getDemoLoginMutationOptions = <TError = ErrorType<NotFoundResponse>,
+export const getDemoLoginMutationOptions = <TError = ErrorType<ErrorResponse | NotFoundResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof demoLogin>>, TError,DemoLoginMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof demoLogin>>, TError,DemoLoginMutationVariables, TContext> => {
 
@@ -464,11 +468,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DemoLoginMutationResult = NonNullable<Awaited<ReturnType<typeof demoLogin>>>
     export type DemoLoginMutationBody = BodyType<DemoLoginInput>
-    export type DemoLoginMutationError = ErrorType<NotFoundResponse>
+    export type DemoLoginMutationError = ErrorType<ErrorResponse | NotFoundResponse>
     export type DemoLoginMutationVariables = {data: BodyType<DemoLoginInput>}
 
     /** @summary Sign in as a seeded demo account (only when ENABLE_DEMO_LOGIN=true) */
-export const useDemoLogin = <TError = ErrorType<NotFoundResponse>,
+export const useDemoLogin = <TError = ErrorType<ErrorResponse | NotFoundResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof demoLogin>>, TError,DemoLoginMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof demoLogin>>,
@@ -1290,20 +1294,20 @@ export function useListCourseLearners<TData = Awaited<ReturnType<typeof listCour
 
 
 
-export const getListLmsLearnersUrl = () => {
+export const getListLmsAccountsUrl = () => {
 
 
 
 
-  return `/api/lms/learners`
+  return `/api/lms/accounts`
 }
 
 /**
  * @summary List accounts (admin sees everyone, lecturer sees students)
  */
-export const listLmsLearners = async ( options?: Parameters<typeof customFetch>[1]): Promise<Learner[]> => {
+export const listLmsAccounts = async ( options?: Parameters<typeof customFetch>[1]): Promise<Learner[]> => {
 
-  return customFetch<Learner[]>(getListLmsLearnersUrl(),
+  return customFetch<Learner[]>(getListLmsAccountsUrl(),
   {
     ...options,
     method: 'GET'
@@ -1316,69 +1320,69 @@ export const listLmsLearners = async ( options?: Parameters<typeof customFetch>[
 
 
 
-export const getListLmsLearnersQueryKey = () => {
+export const getListLmsAccountsQueryKey = () => {
     return [
-    `/api/lms/learners`
+    `/api/lms/accounts`
     ] as const;
     }
 
 
-export const getListLmsLearnersQueryOptions = <TData = Awaited<ReturnType<typeof listLmsLearners>>, TError = ErrorType<ForbiddenResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLmsLearners>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getListLmsAccountsQueryOptions = <TData = Awaited<ReturnType<typeof listLmsAccounts>>, TError = ErrorType<ForbiddenResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLmsAccounts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListLmsLearnersQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListLmsAccountsQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLmsLearners>>> = ({ signal }) => listLmsLearners({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLmsAccounts>>> = ({ signal }) => listLmsAccounts({ signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLmsLearners>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLmsAccounts>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type ListLmsLearnersQueryResult = NonNullable<Awaited<ReturnType<typeof listLmsLearners>>>
-export type ListLmsLearnersQueryError = ErrorType<ForbiddenResponse>
+export type ListLmsAccountsQueryResult = NonNullable<Awaited<ReturnType<typeof listLmsAccounts>>>
+export type ListLmsAccountsQueryError = ErrorType<ForbiddenResponse>
 
 
 /** @summary List accounts (admin sees everyone, lecturer sees students) */
-export function useListLmsLearners<TData = Awaited<ReturnType<typeof listLmsLearners>>, TError = ErrorType<ForbiddenResponse>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLmsLearners>>, TError, TData>> & Pick<
+export function useListLmsAccounts<TData = Awaited<ReturnType<typeof listLmsAccounts>>, TError = ErrorType<ForbiddenResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLmsAccounts>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listLmsLearners>>,
+          Awaited<ReturnType<typeof listLmsAccounts>>,
           TError,
-          Awaited<ReturnType<typeof listLmsLearners>>
+          Awaited<ReturnType<typeof listLmsAccounts>>
         > , 'initialData'
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /** @summary List accounts (admin sees everyone, lecturer sees students) */
-export function useListLmsLearners<TData = Awaited<ReturnType<typeof listLmsLearners>>, TError = ErrorType<ForbiddenResponse>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLmsLearners>>, TError, TData>> & Pick<
+export function useListLmsAccounts<TData = Awaited<ReturnType<typeof listLmsAccounts>>, TError = ErrorType<ForbiddenResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLmsAccounts>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listLmsLearners>>,
+          Awaited<ReturnType<typeof listLmsAccounts>>,
           TError,
-          Awaited<ReturnType<typeof listLmsLearners>>
+          Awaited<ReturnType<typeof listLmsAccounts>>
         > , 'initialData'
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /** @summary List accounts (admin sees everyone, lecturer sees students) */
-export function useListLmsLearners<TData = Awaited<ReturnType<typeof listLmsLearners>>, TError = ErrorType<ForbiddenResponse>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLmsLearners>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export function useListLmsAccounts<TData = Awaited<ReturnType<typeof listLmsAccounts>>, TError = ErrorType<ForbiddenResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLmsAccounts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /** @summary List accounts (admin sees everyone, lecturer sees students) */
-export function useListLmsLearners<TData = Awaited<ReturnType<typeof listLmsLearners>>, TError = ErrorType<ForbiddenResponse>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLmsLearners>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export function useListLmsAccounts<TData = Awaited<ReturnType<typeof listLmsAccounts>>, TError = ErrorType<ForbiddenResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listLmsAccounts>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getListLmsLearnersQueryOptions(options)
+  const queryOptions = getListLmsAccountsQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -1391,25 +1395,25 @@ export function useListLmsLearners<TData = Awaited<ReturnType<typeof listLmsLear
 
 
 
-export const getCreateLmsLearnerUrl = () => {
+export const getCreateLmsAccountUrl = () => {
 
 
 
 
-  return `/api/lms/learners`
+  return `/api/lms/accounts`
 }
 
 /**
  * @summary Create an account with a role and initial password (admin)
  */
-export const createLmsLearner = async (learnerInput: LearnerInput, options?: Parameters<typeof customFetch>[1]): Promise<Learner> => {
+export const createLmsAccount = async (accountInput: AccountInput, options?: Parameters<typeof customFetch>[1]): Promise<Learner> => {
 
-  return customFetch<Learner>(getCreateLmsLearnerUrl(),
+  return customFetch<Learner>(getCreateLmsAccountUrl(),
   {
     ...options,
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
-    body: JSON.stringify(learnerInput)
+    body: JSON.stringify(accountInput)
   }
 );}
 
@@ -1417,13 +1421,13 @@ export const createLmsLearner = async (learnerInput: LearnerInput, options?: Par
 
 
 
-export const getCreateLmsLearnerMutationKey = () => ['createLmsLearner'] as const;
+export const getCreateLmsAccountMutationKey = () => ['createLmsAccount'] as const;
 
-export const getCreateLmsLearnerMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | ConflictResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLmsLearner>>, TError,CreateLmsLearnerMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createLmsLearner>>, TError,CreateLmsLearnerMutationVariables, TContext> => {
+export const getCreateLmsAccountMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLmsAccount>>, TError,CreateLmsAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLmsAccount>>, TError,CreateLmsAccountMutationVariables, TContext> => {
 
-const mutationKey = getCreateLmsLearnerMutationKey();
+const mutationKey = getCreateLmsAccountMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -1433,10 +1437,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLmsLearner>>, CreateLmsLearnerMutationVariables> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLmsAccount>>, CreateLmsAccountMutationVariables> = (props) => {
           const {data} = props ?? {};
 
-          return  createLmsLearner(data,requestOptions)
+          return  createLmsAccount(data,requestOptions)
         }
 
 
@@ -1446,43 +1450,188 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type CreateLmsLearnerMutationResult = NonNullable<Awaited<ReturnType<typeof createLmsLearner>>>
-    export type CreateLmsLearnerMutationBody = BodyType<LearnerInput>
-    export type CreateLmsLearnerMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | ConflictResponse>
-    export type CreateLmsLearnerMutationVariables = {data: BodyType<LearnerInput>}
+    export type CreateLmsAccountMutationResult = NonNullable<Awaited<ReturnType<typeof createLmsAccount>>>
+    export type CreateLmsAccountMutationBody = BodyType<AccountInput>
+    export type CreateLmsAccountMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | ConflictResponse>
+    export type CreateLmsAccountMutationVariables = {data: BodyType<AccountInput>}
 
     /** @summary Create an account with a role and initial password (admin) */
-export const useCreateLmsLearner = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | ConflictResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLmsLearner>>, TError,CreateLmsLearnerMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useCreateLmsAccount = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLmsAccount>>, TError,CreateLmsAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof createLmsLearner>>,
+        Awaited<ReturnType<typeof createLmsAccount>>,
         TError,
-        CreateLmsLearnerMutationVariables,
+        CreateLmsAccountMutationVariables,
         TContext
       > => {
-      return useMutation(getCreateLmsLearnerMutationOptions(options), queryClient);
+      return useMutation(getCreateLmsAccountMutationOptions(options), queryClient);
     }
 
-export const getUpdateLmsLearnerRoleUrl = (id: number,) => {
+export const getUpdateLmsAccountUrl = (id: number,) => {
 
 
 
 
-  return `/api/lms/learners/${id}/role`
+  return `/api/lms/accounts/${id}`
+}
+
+/**
+ * @summary Update an account's name, email or team (admin)
+ */
+export const updateLmsAccount = async (id: number,
+    accountUpdate: AccountUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Learner> => {
+
+  return customFetch<Learner>(getUpdateLmsAccountUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(accountUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateLmsAccountMutationKey = () => ['updateLmsAccount'] as const;
+
+export const getUpdateLmsAccountMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLmsAccount>>, TError,UpdateLmsAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLmsAccount>>, TError,UpdateLmsAccountMutationVariables, TContext> => {
+
+const mutationKey = getUpdateLmsAccountMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLmsAccount>>, UpdateLmsAccountMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateLmsAccount(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLmsAccountMutationResult = NonNullable<Awaited<ReturnType<typeof updateLmsAccount>>>
+    export type UpdateLmsAccountMutationBody = BodyType<AccountUpdate>
+    export type UpdateLmsAccountMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>
+    export type UpdateLmsAccountMutationVariables = {id: number;data: BodyType<AccountUpdate>}
+
+    /** @summary Update an account's name, email or team (admin) */
+export const useUpdateLmsAccount = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLmsAccount>>, TError,UpdateLmsAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateLmsAccount>>,
+        TError,
+        UpdateLmsAccountMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateLmsAccountMutationOptions(options), queryClient);
+    }
+
+export const getDeleteLmsAccountUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/accounts/${id}`
+}
+
+/**
+ * @summary Permanently delete an account and its enrollments, submissions and sessions (admin)
+ */
+export const deleteLmsAccount = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getDeleteLmsAccountUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteLmsAccountMutationKey = () => ['deleteLmsAccount'] as const;
+
+export const getDeleteLmsAccountMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLmsAccount>>, TError,DeleteLmsAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteLmsAccount>>, TError,DeleteLmsAccountMutationVariables, TContext> => {
+
+const mutationKey = getDeleteLmsAccountMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteLmsAccount>>, DeleteLmsAccountMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteLmsAccount(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteLmsAccountMutationResult = NonNullable<Awaited<ReturnType<typeof deleteLmsAccount>>>
+
+    export type DeleteLmsAccountMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type DeleteLmsAccountMutationVariables = {id: number}
+
+    /** @summary Permanently delete an account and its enrollments, submissions and sessions (admin) */
+export const useDeleteLmsAccount = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteLmsAccount>>, TError,DeleteLmsAccountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteLmsAccount>>,
+        TError,
+        DeleteLmsAccountMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteLmsAccountMutationOptions(options), queryClient);
+    }
+
+export const getUpdateLmsAccountRoleUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/accounts/${id}/role`
 }
 
 /**
  * @summary Change an account's role (admin)
  */
-export const updateLmsLearnerRole = async (id: number,
-    learnerRoleUpdate: LearnerRoleUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Learner> => {
+export const updateLmsAccountRole = async (id: number,
+    accountRoleUpdate: AccountRoleUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Learner> => {
 
-  return customFetch<Learner>(getUpdateLmsLearnerRoleUrl(id),
+  return customFetch<Learner>(getUpdateLmsAccountRoleUrl(id),
   {
     ...options,
     method: 'PATCH',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
-    body: JSON.stringify(learnerRoleUpdate)
+    body: JSON.stringify(accountRoleUpdate)
   }
 );}
 
@@ -1490,13 +1639,13 @@ export const updateLmsLearnerRole = async (id: number,
 
 
 
-export const getUpdateLmsLearnerRoleMutationKey = () => ['updateLmsLearnerRole'] as const;
+export const getUpdateLmsAccountRoleMutationKey = () => ['updateLmsAccountRole'] as const;
 
-export const getUpdateLmsLearnerRoleMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLmsLearnerRole>>, TError,UpdateLmsLearnerRoleMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateLmsLearnerRole>>, TError,UpdateLmsLearnerRoleMutationVariables, TContext> => {
+export const getUpdateLmsAccountRoleMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLmsAccountRole>>, TError,UpdateLmsAccountRoleMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLmsAccountRole>>, TError,UpdateLmsAccountRoleMutationVariables, TContext> => {
 
-const mutationKey = getUpdateLmsLearnerRoleMutationKey();
+const mutationKey = getUpdateLmsAccountRoleMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -1506,10 +1655,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLmsLearnerRole>>, UpdateLmsLearnerRoleMutationVariables> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLmsAccountRole>>, UpdateLmsAccountRoleMutationVariables> = (props) => {
           const {id,data} = props ?? {};
 
-          return  updateLmsLearnerRole(id,data,requestOptions)
+          return  updateLmsAccountRole(id,data,requestOptions)
         }
 
 
@@ -1519,21 +1668,167 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type UpdateLmsLearnerRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateLmsLearnerRole>>>
-    export type UpdateLmsLearnerRoleMutationBody = BodyType<LearnerRoleUpdate>
-    export type UpdateLmsLearnerRoleMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
-    export type UpdateLmsLearnerRoleMutationVariables = {id: number;data: BodyType<LearnerRoleUpdate>}
+    export type UpdateLmsAccountRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateLmsAccountRole>>>
+    export type UpdateLmsAccountRoleMutationBody = BodyType<AccountRoleUpdate>
+    export type UpdateLmsAccountRoleMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type UpdateLmsAccountRoleMutationVariables = {id: number;data: BodyType<AccountRoleUpdate>}
 
     /** @summary Change an account's role (admin) */
-export const useUpdateLmsLearnerRole = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLmsLearnerRole>>, TError,UpdateLmsLearnerRoleMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useUpdateLmsAccountRole = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLmsAccountRole>>, TError,UpdateLmsAccountRoleMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof updateLmsLearnerRole>>,
+        Awaited<ReturnType<typeof updateLmsAccountRole>>,
         TError,
-        UpdateLmsLearnerRoleMutationVariables,
+        UpdateLmsAccountRoleMutationVariables,
         TContext
       > => {
-      return useMutation(getUpdateLmsLearnerRoleMutationOptions(options), queryClient);
+      return useMutation(getUpdateLmsAccountRoleMutationOptions(options), queryClient);
+    }
+
+export const getUpdateLmsAccountStatusUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/accounts/${id}/status`
+}
+
+/**
+ * @summary Lock or unlock an account; locking signs the user out everywhere (admin)
+ */
+export const updateLmsAccountStatus = async (id: number,
+    accountStatusUpdate: AccountStatusUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Learner> => {
+
+  return customFetch<Learner>(getUpdateLmsAccountStatusUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(accountStatusUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateLmsAccountStatusMutationKey = () => ['updateLmsAccountStatus'] as const;
+
+export const getUpdateLmsAccountStatusMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLmsAccountStatus>>, TError,UpdateLmsAccountStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLmsAccountStatus>>, TError,UpdateLmsAccountStatusMutationVariables, TContext> => {
+
+const mutationKey = getUpdateLmsAccountStatusMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLmsAccountStatus>>, UpdateLmsAccountStatusMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateLmsAccountStatus(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLmsAccountStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updateLmsAccountStatus>>>
+    export type UpdateLmsAccountStatusMutationBody = BodyType<AccountStatusUpdate>
+    export type UpdateLmsAccountStatusMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type UpdateLmsAccountStatusMutationVariables = {id: number;data: BodyType<AccountStatusUpdate>}
+
+    /** @summary Lock or unlock an account; locking signs the user out everywhere (admin) */
+export const useUpdateLmsAccountStatus = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLmsAccountStatus>>, TError,UpdateLmsAccountStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateLmsAccountStatus>>,
+        TError,
+        UpdateLmsAccountStatusMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateLmsAccountStatusMutationOptions(options), queryClient);
+    }
+
+export const getResetLmsAccountPasswordUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/accounts/${id}/password`
+}
+
+/**
+ * @summary Set a new password for an account and sign it out everywhere (admin)
+ */
+export const resetLmsAccountPassword = async (id: number,
+    accountPasswordReset: AccountPasswordReset, options?: Parameters<typeof customFetch>[1]): Promise<MessageResponse> => {
+
+  return customFetch<MessageResponse>(getResetLmsAccountPasswordUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(accountPasswordReset)
+  }
+);}
+
+
+
+
+
+export const getResetLmsAccountPasswordMutationKey = () => ['resetLmsAccountPassword'] as const;
+
+export const getResetLmsAccountPasswordMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetLmsAccountPassword>>, TError,ResetLmsAccountPasswordMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetLmsAccountPassword>>, TError,ResetLmsAccountPasswordMutationVariables, TContext> => {
+
+const mutationKey = getResetLmsAccountPasswordMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetLmsAccountPassword>>, ResetLmsAccountPasswordMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  resetLmsAccountPassword(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetLmsAccountPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof resetLmsAccountPassword>>>
+    export type ResetLmsAccountPasswordMutationBody = BodyType<AccountPasswordReset>
+    export type ResetLmsAccountPasswordMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type ResetLmsAccountPasswordMutationVariables = {id: number;data: BodyType<AccountPasswordReset>}
+
+    /** @summary Set a new password for an account and sign it out everywhere (admin) */
+export const useResetLmsAccountPassword = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetLmsAccountPassword>>, TError,ResetLmsAccountPasswordMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resetLmsAccountPassword>>,
+        TError,
+        ResetLmsAccountPasswordMutationVariables,
+        TContext
+      > => {
+      return useMutation(getResetLmsAccountPasswordMutationOptions(options), queryClient);
     }
 
 export const getListLmsLearningPathsUrl = () => {

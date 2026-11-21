@@ -11,6 +11,7 @@
  *
  * OpenAPI spec version: 0.2.0
  */
+import type { AccountStatus } from './accountStatus';
 import type { UserRole } from './userRole';
 
 export interface Learner {
@@ -18,6 +19,7 @@ export interface Learner {
   name: string;
   email: string;
   role: UserRole;
+  status: AccountStatus;
   team: string;
   points: number;
   streak: number;

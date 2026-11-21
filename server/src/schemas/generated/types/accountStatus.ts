@@ -11,8 +11,11 @@
  *
  * OpenAPI spec version: 0.2.0
  */
-import type { UserRole } from './userRole';
 
-export interface LearnerRoleUpdate {
-  role: UserRole;
-}
+export type AccountStatus = typeof AccountStatus[keyof typeof AccountStatus];
+
+
+export const AccountStatus = {
+  active: 'active',
+  locked: 'locked',
+} as const;

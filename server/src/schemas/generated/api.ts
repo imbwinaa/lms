@@ -311,6 +311,7 @@ export const ListCourseLearnersResponseItem = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "role": zod.enum(['student', 'lecturer', 'admin']),
+  "status": zod.enum(['active', 'locked']),
   "team": zod.string(),
   "points": zod.int(),
   "streak": zod.int(),
@@ -324,11 +325,12 @@ export const ListCourseLearnersResponse = zod.array(ListCourseLearnersResponseIt
 /**
  * @summary List accounts (admin sees everyone, lecturer sees students)
  */
-export const ListLmsLearnersResponseItem = zod.object({
+export const ListLmsAccountsResponseItem = zod.object({
   "id": zod.int(),
   "name": zod.string(),
   "email": zod.string(),
   "role": zod.enum(['student', 'lecturer', 'admin']),
+  "status": zod.enum(['active', 'locked']),
   "team": zod.string(),
   "points": zod.int(),
   "streak": zod.int(),
@@ -336,37 +338,89 @@ export const ListLmsLearnersResponseItem = zod.object({
   "activeCourse": zod.string(),
   "lastActive": zod.string()
 })
-export const ListLmsLearnersResponse = zod.array(ListLmsLearnersResponseItem)
+export const ListLmsAccountsResponse = zod.array(ListLmsAccountsResponseItem)
 
 
 /**
  * @summary Create an account with a role and initial password (admin)
  */
-export const createLmsLearnerBodyNameMin = 2;
+export const createLmsAccountBodyNameMin = 2;
 
-export const createLmsLearnerBodyPasswordMin = 8;
+export const createLmsAccountBodyPasswordMin = 8;
 
 
 
-export const CreateLmsLearnerBody = zod.object({
-  "name": zod.string().min(createLmsLearnerBodyNameMin),
+export const CreateLmsAccountBody = zod.object({
+  "name": zod.string().min(createLmsAccountBodyNameMin),
   "email": zod.email(),
   "role": zod.enum(['student', 'lecturer', 'admin']),
   "team": zod.string().optional(),
-  "password": zod.string().min(createLmsLearnerBodyPasswordMin)
+  "password": zod.string().min(createLmsAccountBodyPasswordMin)
 })
 
-export const CreateLmsLearnerResponse = zod.object({
+export const CreateLmsAccountResponse = zod.object({
   "id": zod.int(),
   "name": zod.string(),
   "email": zod.string(),
   "role": zod.enum(['student', 'lecturer', 'admin']),
+  "status": zod.enum(['active', 'locked']),
   "team": zod.string(),
   "points": zod.int(),
   "streak": zod.int(),
   "progress": zod.number(),
   "activeCourse": zod.string(),
   "lastActive": zod.string()
+})
+
+
+/**
+ * @summary Update an account's name, email or team (admin)
+ */
+
+
+
+export const UpdateLmsAccountParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateLmsAccountBodyNameMin = 2;
+
+
+
+
+export const UpdateLmsAccountBody = zod.object({
+  "name": zod.string().min(updateLmsAccountBodyNameMin).optional(),
+  "email": zod.email().optional(),
+  "team": zod.string().min(1).optional()
+})
+
+export const UpdateLmsAccountResponse = zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['student', 'lecturer', 'admin']),
+  "status": zod.enum(['active', 'locked']),
+  "team": zod.string(),
+  "points": zod.int(),
+  "streak": zod.int(),
+  "progress": zod.number(),
+  "activeCourse": zod.string(),
+  "lastActive": zod.string()
+})
+
+
+/**
+ * @summary Permanently delete an account and its enrollments, submissions and sessions (admin)
+ */
+
+
+
+export const DeleteLmsAccountParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DeleteLmsAccountResponse = zod.object({
+  "message": zod.string()
 })
 
 
@@ -376,25 +430,78 @@ export const CreateLmsLearnerResponse = zod.object({
 
 
 
-export const UpdateLmsLearnerRoleParams = zod.object({
+export const UpdateLmsAccountRoleParams = zod.object({
   "id": zod.coerce.number().int().min(1)
 })
 
-export const UpdateLmsLearnerRoleBody = zod.object({
+export const UpdateLmsAccountRoleBody = zod.object({
   "role": zod.enum(['student', 'lecturer', 'admin'])
 })
 
-export const UpdateLmsLearnerRoleResponse = zod.object({
+export const UpdateLmsAccountRoleResponse = zod.object({
   "id": zod.int(),
   "name": zod.string(),
   "email": zod.string(),
   "role": zod.enum(['student', 'lecturer', 'admin']),
+  "status": zod.enum(['active', 'locked']),
   "team": zod.string(),
   "points": zod.int(),
   "streak": zod.int(),
   "progress": zod.number(),
   "activeCourse": zod.string(),
   "lastActive": zod.string()
+})
+
+
+/**
+ * @summary Lock or unlock an account; locking signs the user out everywhere (admin)
+ */
+
+
+
+export const UpdateLmsAccountStatusParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const UpdateLmsAccountStatusBody = zod.object({
+  "status": zod.enum(['active', 'locked'])
+})
+
+export const UpdateLmsAccountStatusResponse = zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['student', 'lecturer', 'admin']),
+  "status": zod.enum(['active', 'locked']),
+  "team": zod.string(),
+  "points": zod.int(),
+  "streak": zod.int(),
+  "progress": zod.number(),
+  "activeCourse": zod.string(),
+  "lastActive": zod.string()
+})
+
+
+/**
+ * @summary Set a new password for an account and sign it out everywhere (admin)
+ */
+
+
+
+export const ResetLmsAccountPasswordParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const resetLmsAccountPasswordBodyPasswordMin = 8;
+
+
+
+export const ResetLmsAccountPasswordBody = zod.object({
+  "password": zod.string().min(resetLmsAccountPasswordBodyPasswordMin)
+})
+
+export const ResetLmsAccountPasswordResponse = zod.object({
+  "message": zod.string()
 })
 
 
