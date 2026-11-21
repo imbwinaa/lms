@@ -54,9 +54,9 @@ On first start the server creates `server/lms.db` and fills it with **demo data*
 
 | Role | Email |
 | --- | --- |
-| Admin | `ngan.bui@nova.vn` |
-| Lecturer | `bui.ngan@nova.vn` |
-| Student | `ngann@nova.vn` |
+| Admin | `ngan.bui@boom.vn` |
+| Lecturer | `bui.ngan@boom.vn` |
+| Student | `ngann@boom.vn` |
 
 There is no public sign-up. Admins manage accounts on the **Người dùng & Phân quyền** page (`/accounts`): create, edit, change role, reset password, lock or unlock, and delete.
 

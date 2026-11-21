@@ -36,17 +36,17 @@ let otherCourseId: number;
 
 beforeAll(async () => {
   await ensureLmsSeeded();
-  const a = await login("ngan.bui@nova.vn");
-  const l = await login("bui.ngan@nova.vn");
-  const s = await login("ngann@nova.vn");
+  const a = await login("ngan.bui@boom.vn");
+  const l = await login("bui.ngan@boom.vn");
+  const s = await login("ngann@boom.vn");
   admin = { token: a.token, id: a.user.id };
   lecturer = { token: l.token, id: l.user.id };
   student = { token: s.token, id: s.user.id };
 
   // Admin cấp thêm 1 giảng viên và 1 học viên
   for (const [email, role] of [
-    ["lecturer2@nova.vn", "lecturer"],
-    ["outsider@nova.vn", "student"],
+    ["lecturer2@boom.vn", "lecturer"],
+    ["outsider@boom.vn", "student"],
   ] as const) {
     const res = await api()
       .post("/api/lms/accounts")
@@ -54,8 +54,8 @@ beforeAll(async () => {
       .send({ name: `Test ${role}`, email, role, password: "password123" });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
   }
-  const l2 = await login("lecturer2@nova.vn", "password123");
-  const o = await login("outsider@nova.vn", "password123");
+  const l2 = await login("lecturer2@boom.vn", "password123");
+  const o = await login("outsider@boom.vn", "password123");
   otherLecturer = { token: l2.token, id: l2.user.id };
   outsider = { token: o.token, id: o.user.id };
 
@@ -128,7 +128,7 @@ describe("authentication", () => {
   });
 
   it("revokes the session on logout", async () => {
-    const { token } = await login("ngann@nova.vn");
+    const { token } = await login("ngann@boom.vn");
     expect((await api().post("/api/auth/logout").set(auth(token))).status).toBe(200);
     expect((await api().get("/api/auth/me").set(auth(token))).status).toBe(401);
   });
@@ -136,10 +136,10 @@ describe("authentication", () => {
   it("rate limits repeated failed logins", async () => {
     resetLoginRateLimit();
     for (let i = 0; i < 10; i++) {
-      const res = await api().post("/api/auth/login").send({ email: "l@nova.vn", password: "wrong" });
+      const res = await api().post("/api/auth/login").send({ email: "l@boom.vn", password: "wrong" });
       expect(res.status).toBe(401);
     }
-    const blocked = await api().post("/api/auth/login").send({ email: "l@nova.vn", password: SEED_PASSWORD });
+    const blocked = await api().post("/api/auth/login").send({ email: "l@boom.vn", password: SEED_PASSWORD });
     expect(blocked.status).toBe(429);
     resetLoginRateLimit();
   });
@@ -167,7 +167,7 @@ describe("accounts & roles", () => {
     const create = await api()
       .post("/api/lms/accounts")
       .set(auth(lecturer.token))
-      .send({ name: "Nope", email: "nope@nova.vn", role: "admin", password: "password123" });
+      .send({ name: "Nope", email: "nope@boom.vn", role: "admin", password: "password123" });
     expect(create.status).toBe(403);
 
     const promote = await api().patch(`/api/lms/accounts/${student.id}/role`).set(auth(student.token)).send({ role: "admin" });
@@ -178,12 +178,12 @@ describe("accounts & roles", () => {
     const dup = await api()
       .post("/api/lms/accounts")
       .set(auth(admin.token))
-      .send({ name: "Dup", email: "NGANN@nova.vn", role: "student", password: "password123" });
+      .send({ name: "Dup", email: "NGANN@boom.vn", role: "student", password: "password123" });
     expect(dup.status).toBe(409);
     const short = await api()
       .post("/api/lms/accounts")
       .set(auth(admin.token))
-      .send({ name: "Short", email: "short@nova.vn", role: "student", password: "123" });
+      .send({ name: "Short", email: "short@boom.vn", role: "student", password: "123" });
     expect(short.status).toBe(400);
     expect(short.body.issues?.[0]?.path).toBe("password");
   });
@@ -210,45 +210,45 @@ describe("accounts & roles", () => {
     const created = await api()
       .post("/api/lms/accounts")
       .set(auth(admin.token))
-      .send({ name: "Lifecycle", email: "lifecycle@nova.vn", role: "student", password: "password123" });
+      .send({ name: "Lifecycle", email: "lifecycle@boom.vn", role: "student", password: "password123" });
     expect(created.status).toBe(201);
     expect(created.body.status).toBe("active");
     const id = created.body.id as number;
 
     // Sửa hồ sơ; email trùng bị từ chối
-    const dup = await api().patch(`/api/lms/accounts/${id}`).set(auth(admin.token)).send({ email: "ngann@nova.vn" });
+    const dup = await api().patch(`/api/lms/accounts/${id}`).set(auth(admin.token)).send({ email: "ngann@boom.vn" });
     expect(dup.status).toBe(409);
     const edit = await api()
       .patch(`/api/lms/accounts/${id}`)
       .set(auth(admin.token))
-      .send({ name: "Lifecycle Edited", email: "Lifecycle2@nova.vn", team: "Lớp 11B" });
+      .send({ name: "Lifecycle Edited", email: "Lifecycle2@boom.vn", team: "Lớp 11B" });
     expect(edit.status, JSON.stringify(edit.body)).toBe(200);
-    expect(edit.body).toMatchObject({ name: "Lifecycle Edited", email: "lifecycle2@nova.vn", team: "Lớp 11B" });
+    expect(edit.body).toMatchObject({ name: "Lifecycle Edited", email: "lifecycle2@boom.vn", team: "Lớp 11B" });
 
     // Đặt lại mật khẩu: phiên cũ bị thu hồi, mật khẩu cũ hết hiệu lực
-    const before = await login("lifecycle2@nova.vn", "password123");
+    const before = await login("lifecycle2@boom.vn", "password123");
     const reset = await api().put(`/api/lms/accounts/${id}/password`).set(auth(admin.token)).send({ password: "newpassword1" });
     expect(reset.status).toBe(200);
     expect((await api().get("/api/auth/me").set(auth(before.token))).status).toBe(401);
-    expect((await api().post("/api/auth/login").send({ email: "lifecycle2@nova.vn", password: "password123" })).status).toBe(401);
-    const session = await login("lifecycle2@nova.vn", "newpassword1");
+    expect((await api().post("/api/auth/login").send({ email: "lifecycle2@boom.vn", password: "password123" })).status).toBe(401);
+    const session = await login("lifecycle2@boom.vn", "newpassword1");
 
     // Khóa: phiên hiện tại bị thu hồi, không đăng nhập lại được
     const lock = await api().patch(`/api/lms/accounts/${id}/status`).set(auth(admin.token)).send({ status: "locked" });
     expect(lock.status).toBe(200);
     expect(lock.body.status).toBe("locked");
     expect((await api().get("/api/auth/me").set(auth(session.token))).status).toBe(401);
-    expect((await api().post("/api/auth/login").send({ email: "lifecycle2@nova.vn", password: "newpassword1" })).status).toBe(403);
+    expect((await api().post("/api/auth/login").send({ email: "lifecycle2@boom.vn", password: "newpassword1" })).status).toBe(403);
 
     // Mở khóa: đăng nhập lại được
     const unlock = await api().patch(`/api/lms/accounts/${id}/status`).set(auth(admin.token)).send({ status: "active" });
     expect(unlock.body.status).toBe("active");
-    await login("lifecycle2@nova.vn", "newpassword1");
+    await login("lifecycle2@boom.vn", "newpassword1");
 
     // Xóa vĩnh viễn
     expect((await api().delete(`/api/lms/accounts/${id}`).set(auth(admin.token))).status).toBe(200);
     expect((await api().delete(`/api/lms/accounts/${id}`).set(auth(admin.token))).status).toBe(404);
-    expect((await api().post("/api/auth/login").send({ email: "lifecycle2@nova.vn", password: "newpassword1" })).status).toBe(401);
+    expect((await api().post("/api/auth/login").send({ email: "lifecycle2@boom.vn", password: "newpassword1" })).status).toBe(401);
   });
 });
 

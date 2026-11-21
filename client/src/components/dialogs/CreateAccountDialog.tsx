@@ -70,7 +70,7 @@ export function CreateAccountDialog({ open, onClose, onCreated }: CreateAccountD
             <Input value={name} onChange={e => setName(e.target.value)} required minLength={2} placeholder="VD: Nguyễn Văn An" />
           </Field>
           <Field label="Email *">
-            <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="an.nguyen@nova.vn" />
+            <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="an.nguyen@boom.vn" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Vai trò">

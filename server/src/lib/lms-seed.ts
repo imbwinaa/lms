@@ -124,7 +124,7 @@ const courseSeed = [
 const learnerSeed = [
   {
     name: "Cô Ngân Bùi",
-    email: "ngan.bui@nova.vn",
+    email: "ngan.bui@boom.vn",
     passwordHash: defaultPasswordHash,
     role: "admin",
     team: "Ban Giám Hiệu",
@@ -136,7 +136,7 @@ const learnerSeed = [
   },
   {
     name: "Cô Bui Ngan",
-    email: "bui.ngan@nova.vn",
+    email: "bui.ngan@boom.vn",
     passwordHash: defaultPasswordHash,
     role: "lecturer",
     team: "Tổ Sư Phạm & Đào Tạo",
@@ -148,7 +148,7 @@ const learnerSeed = [
   },
   {
     name: "Ngann",
-    email: "ngann@nova.vn",
+    email: "ngann@boom.vn",
     passwordHash: defaultPasswordHash,
     role: "student",
     team: "Lớp 10A",
@@ -160,7 +160,7 @@ const learnerSeed = [
   },
   {
     name: "Bui",
-    email: "bui@nova.vn",
+    email: "bui@boom.vn",
     passwordHash: defaultPasswordHash,
     role: "student",
     team: "Lớp 10A",
@@ -172,7 +172,7 @@ const learnerSeed = [
   },
   {
     name: "L",
-    email: "l@nova.vn",
+    email: "l@boom.vn",
     passwordHash: defaultPasswordHash,
     role: "student",
     team: "Lớp 10B",

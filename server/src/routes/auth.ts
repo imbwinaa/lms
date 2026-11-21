@@ -97,7 +97,7 @@ authRouter.post("/demo-login", async (req, res) => {
   if (!isDemoLoginEnabled()) throw notFound("Không tìm thấy endpoint.");
   const { role } = parseOr400(DemoLoginBody, req.body);
 
-  const demoEmail = role === "admin" ? "ngan.bui@nova.vn" : role === "lecturer" ? "bui.ngan@nova.vn" : "ngann@nova.vn";
+  const demoEmail = role === "admin" ? "ngan.bui@boom.vn" : role === "lecturer" ? "bui.ngan@boom.vn" : "ngann@boom.vn";
   let [user] = await db
     .select()
     .from(lmsLearnersTable)

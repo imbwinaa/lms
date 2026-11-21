@@ -39,7 +39,7 @@ describe("production seed (admin only)", () => {
     expect(badges.body).toEqual([]);
     const demoLogin = await request(app)
       .post("/api/auth/login")
-      .send({ email: "ngann@nova.vn", password: "first-admin-pass" });
+      .send({ email: "ngann@boom.vn", password: "first-admin-pass" });
     expect(demoLogin.status).toBe(401);
   });
 
