@@ -3,12 +3,15 @@ import { Router, type IRouter } from "express";
 import {
   db,
   lmsActivitiesTable,
+  lmsAssignmentsTable,
   lmsBadgesTable,
   lmsCertificatesTable,
   lmsCoursesTable,
   lmsEnrollmentsTable,
   lmsLearnersTable,
   lmsLearningPathsTable,
+  lmsMaterialsTable,
+  lmsSubmissionsTable,
   lmsXapiEventsTable,
 } from "../db";
 import {
@@ -125,6 +128,8 @@ router.post("/lms/courses", async (req, res): Promise<void> => {
   const instructorName = typeof req.body.instructorName === "string" && req.body.instructorName.trim()
     ? req.body.instructorName.trim()
     : "Cô Bui Ngan";
+  const mediaUrl = typeof req.body.mediaUrl === "string" ? req.body.mediaUrl : null;
+  const mediaType = typeof req.body.mediaType === "string" ? req.body.mediaType : "video";
   const [course] = await db
     .insert(lmsCoursesTable)
     .values({
@@ -134,6 +139,8 @@ router.post("/lms/courses", async (req, res): Promise<void> => {
       progress: 0,
       accent: courseAccents[(parsed.data.title.length + parsed.data.lessons) % courseAccents.length]!,
       instructorName,
+      mediaUrl,
+      mediaType,
     })
     .returning();
   res.status(201).json(course);
@@ -154,6 +161,12 @@ router.patch("/lms/courses/:id", async (req, res): Promise<void> => {
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (typeof req.body.instructorName === "string") {
     updateData.instructorName = req.body.instructorName;
+  }
+  if (typeof req.body.mediaUrl === "string") {
+    updateData.mediaUrl = req.body.mediaUrl;
+  }
+  if (typeof req.body.mediaType === "string") {
+    updateData.mediaType = req.body.mediaType;
   }
   const [course] = await db
     .update(lmsCoursesTable)
@@ -554,5 +567,385 @@ router.post("/lms/xapi/events", async (req, res): Promise<void> => {
   });
   res.status(201).json(RecordXapiEventResponse.parse(event));
 });
+
+// ==========================================
+// MOODLE CORE ENDPOINTS: MATERIALS, ASSIGNMENTS, SUBMISSIONS
+// ==========================================
+
+function parseId(param: string | number): number {
+  if (typeof param === "number") return param;
+  const digits = String(param).replace(/\D/g, "");
+  return digits ? parseInt(digits, 10) : parseInt(String(param), 10);
+}
+
+function formatMaterial(m: typeof lmsMaterialsTable.$inferSelect) {
+  return {
+    id: `mat-${m.id}`,
+    rawId: m.id,
+    courseId: m.courseId,
+    lessonNumber: m.lessonNumber ?? 1,
+    title: m.title,
+    type: m.type as "pdf" | "doc" | "slide" | "video" | "link",
+    fileUrl: m.fileUrl,
+    fileName: m.fileName ?? undefined,
+    fileSize: m.fileSize ?? undefined,
+    description: m.description ?? undefined,
+    uploadedBy: m.uploadedBy,
+    uploadedAt: m.createdAt ? new Date(m.createdAt).toLocaleDateString("vi-VN") : "",
+    downloadCount: m.downloadCount,
+  };
+}
+
+function formatAssignment(a: typeof lmsAssignmentsTable.$inferSelect) {
+  return {
+    id: `asg-${a.id}`,
+    rawId: a.id,
+    courseId: a.courseId,
+    title: a.title,
+    description: a.description ?? "",
+    dueDate: a.dueDate,
+    maxPoints: a.maxPoints,
+    attachmentUrl: a.attachmentUrl ?? undefined,
+    attachmentName: a.attachmentName ?? undefined,
+    createdBy: a.createdBy,
+    createdAt: a.createdAt ? new Date(a.createdAt).toLocaleDateString("vi-VN") : "",
+  };
+}
+
+function formatSubmission(s: typeof lmsSubmissionsTable.$inferSelect) {
+  return {
+    id: `sub-${s.id}`,
+    rawId: s.id,
+    assignmentId: `asg-${s.assignmentId}`,
+    studentId: s.studentId,
+    studentName: s.studentName,
+    studentAvatar: s.studentAvatar,
+    fileUrl: s.fileUrl ?? undefined,
+    fileName: s.fileName ?? undefined,
+    fileSize: s.fileSize ?? undefined,
+    textContent: s.textContent ?? undefined,
+    submittedAt: s.submittedAt ? new Date(s.submittedAt).toLocaleString("vi-VN") : "",
+    status: s.status as "submitted" | "graded",
+    grade: s.grade ?? undefined,
+    feedback: s.feedback ?? undefined,
+    gradedBy: s.gradedBy ?? undefined,
+    gradedAt: s.gradedAt ? new Date(s.gradedAt).toLocaleString("vi-VN") : undefined,
+  };
+}
+
+// 1. Courses details & alias
+const getSingleCourseHandler = async (req: any, res: any): Promise<void> => {
+  await ensureLmsSeeded();
+  const id = parseId(req.params.id);
+  const [course] = await db
+    .select()
+    .from(lmsCoursesTable)
+    .where(eq(lmsCoursesTable.id, id))
+    .limit(1);
+  if (!course) {
+    res.status(404).json({ error: "Không tìm thấy khóa học." });
+    return;
+  }
+  res.json(course);
+};
+
+router.get("/courses", async (_req, res): Promise<void> => {
+  await ensureLmsSeeded();
+  const courses = await db.select().from(lmsCoursesTable).orderBy(desc(lmsCoursesTable.id));
+  res.json(courses);
+});
+router.get("/courses/:id", getSingleCourseHandler);
+router.get("/lms/courses/:id", getSingleCourseHandler);
+
+// 2. Materials
+const getMaterialsHandler = async (req: any, res: any): Promise<void> => {
+  await ensureLmsSeeded();
+  const courseId = parseId(req.params.id);
+  const list = await db
+    .select()
+    .from(lmsMaterialsTable)
+    .where(eq(lmsMaterialsTable.courseId, courseId))
+    .orderBy(desc(lmsMaterialsTable.id));
+  res.json(list.map(formatMaterial));
+};
+
+const postMaterialHandler = async (req: any, res: any): Promise<void> => {
+  await ensureLmsSeeded();
+  const courseId = parseId(req.params.id);
+  const { title, type, fileUrl, fileName, fileSize, description, lessonNumber, uploadedBy } = req.body;
+  if (!title || !fileUrl) {
+    res.status(400).json({ error: "Vui lòng cung cấp tiêu đề và đường dẫn file tài liệu." });
+    return;
+  }
+  const [inserted] = await db
+    .insert(lmsMaterialsTable)
+    .values({
+      courseId,
+      lessonNumber: Number(lessonNumber) || 1,
+      title: String(title).trim(),
+      type: type || "pdf",
+      fileUrl: String(fileUrl),
+      fileName: fileName ? String(fileName) : null,
+      fileSize: fileSize ? String(fileSize) : null,
+      description: description ? String(description).trim() : null,
+      uploadedBy: uploadedBy ? String(uploadedBy).trim() : "Cô Bui Ngan",
+      downloadCount: 0,
+    })
+    .returning();
+
+  await db.insert(lmsActivitiesTable).values({
+    title: `${uploadedBy || "Giảng viên"} vừa đăng tài liệu mới`,
+    detail: title,
+    time: "Vừa xong",
+    kind: "quiz",
+  });
+
+  res.status(201).json(formatMaterial(inserted!));
+};
+
+router.get("/courses/:id/materials", getMaterialsHandler);
+router.get("/lms/courses/:id/materials", getMaterialsHandler);
+router.post("/courses/:id/materials", postMaterialHandler);
+router.post("/lms/courses/:id/materials", postMaterialHandler);
+
+const deleteMaterialHandler = async (req: any, res: any): Promise<void> => {
+  await ensureLmsSeeded();
+  const id = parseId(req.params.id);
+  const [deleted] = await db
+    .delete(lmsMaterialsTable)
+    .where(eq(lmsMaterialsTable.id, id))
+    .returning();
+  if (!deleted) {
+    res.status(404).json({ error: "Không tìm thấy tài liệu cần xóa." });
+    return;
+  }
+  res.json({ success: true, message: "Đã xóa tài liệu thành công.", id: `mat-${id}` });
+};
+
+router.delete("/materials/:id", deleteMaterialHandler);
+router.delete("/lms/materials/:id", deleteMaterialHandler);
+
+const downloadMaterialHandler = async (req: any, res: any): Promise<void> => {
+  await ensureLmsSeeded();
+  const id = parseId(req.params.id);
+  const [updated] = await db
+    .update(lmsMaterialsTable)
+    .set({ downloadCount: sql`${lmsMaterialsTable.downloadCount} + 1` })
+    .where(eq(lmsMaterialsTable.id, id))
+    .returning();
+  if (!updated) {
+    res.status(404).json({ error: "Không tìm thấy tài liệu." });
+    return;
+  }
+  res.json({ success: true, downloadCount: updated.downloadCount });
+};
+
+router.post("/materials/:id/download", downloadMaterialHandler);
+router.post("/lms/materials/:id/download", downloadMaterialHandler);
+
+// 3. Assignments
+const getAssignmentsHandler = async (req: any, res: any): Promise<void> => {
+  await ensureLmsSeeded();
+  const courseId = parseId(req.params.id);
+  const list = await db
+    .select()
+    .from(lmsAssignmentsTable)
+    .where(eq(lmsAssignmentsTable.courseId, courseId))
+    .orderBy(desc(lmsAssignmentsTable.id));
+  res.json(list.map(formatAssignment));
+};
+
+const postAssignmentHandler = async (req: any, res: any): Promise<void> => {
+  await ensureLmsSeeded();
+  const courseId = parseId(req.params.id);
+  const { title, description, dueDate, maxPoints, attachmentName, attachmentUrl, createdBy } = req.body;
+  if (!title || !dueDate) {
+    res.status(400).json({ error: "Vui lòng nhập tiêu đề bài tập và hạn nộp." });
+    return;
+  }
+  const [inserted] = await db
+    .insert(lmsAssignmentsTable)
+    .values({
+      courseId,
+      title: String(title).trim(),
+      description: description ? String(description).trim() : null,
+      dueDate: String(dueDate),
+      maxPoints: Number(maxPoints) || 10,
+      attachmentName: attachmentName ? String(attachmentName) : null,
+      attachmentUrl: attachmentUrl ? String(attachmentUrl) : null,
+      createdBy: createdBy ? String(createdBy).trim() : "Cô Bui Ngan",
+    })
+    .returning();
+
+  await db.insert(lmsActivitiesTable).values({
+    title: `${createdBy || "Giảng viên"} vừa giao bài tập mới`,
+    detail: title,
+    time: "Vừa xong",
+    kind: "enrollment",
+  });
+
+  res.status(201).json(formatAssignment(inserted!));
+};
+
+router.get("/courses/:id/assignments", getAssignmentsHandler);
+router.get("/lms/courses/:id/assignments", getAssignmentsHandler);
+router.post("/courses/:id/assignments", postAssignmentHandler);
+router.post("/lms/courses/:id/assignments", postAssignmentHandler);
+
+const deleteAssignmentHandler = async (req: any, res: any): Promise<void> => {
+  await ensureLmsSeeded();
+  const id = parseId(req.params.id);
+  const [deleted] = await db
+    .delete(lmsAssignmentsTable)
+    .where(eq(lmsAssignmentsTable.id, id))
+    .returning();
+  if (!deleted) {
+    res.status(404).json({ error: "Không tìm thấy bài tập cần xóa." });
+    return;
+  }
+  res.json({ success: true, message: "Đã xóa bài tập thành công.", id: `asg-${id}` });
+};
+
+router.delete("/assignments/:id", deleteAssignmentHandler);
+router.delete("/lms/assignments/:id", deleteAssignmentHandler);
+
+// 4. Submissions & Grading
+const submitAssignmentHandler = async (req: any, res: any): Promise<void> => {
+  await ensureLmsSeeded();
+  const assignmentId = parseId(req.params.id);
+  const { studentId, studentName, studentAvatar, fileUrl, fileName, fileSize, textContent } = req.body;
+  const numStudentId = Number(studentId) || 3;
+
+  // Kiểm tra bài tập tồn tại
+  const [assignment] = await db
+    .select()
+    .from(lmsAssignmentsTable)
+    .where(eq(lmsAssignmentsTable.id, assignmentId))
+    .limit(1);
+  if (!assignment) {
+    res.status(404).json({ error: "Không tìm thấy bài tập yêu cầu." });
+    return;
+  }
+
+  // Tìm bài nộp đã có (nếu có thì cập nhật lại bài nộp)
+  const [existingSub] = await db
+    .select()
+    .from(lmsSubmissionsTable)
+    .where(
+      and(
+        eq(lmsSubmissionsTable.assignmentId, assignmentId),
+        eq(lmsSubmissionsTable.studentId, numStudentId)
+      )
+    )
+    .limit(1);
+
+  let submission: typeof lmsSubmissionsTable.$inferSelect;
+  if (existingSub) {
+    const [updated] = await db
+      .update(lmsSubmissionsTable)
+      .set({
+        fileUrl: fileUrl !== undefined ? fileUrl : existingSub.fileUrl,
+        fileName: fileName !== undefined ? fileName : existingSub.fileName,
+        fileSize: fileSize !== undefined ? fileSize : existingSub.fileSize,
+        textContent: textContent !== undefined ? textContent : existingSub.textContent,
+        status: "submitted",
+        submittedAt: new Date().toISOString(),
+      })
+      .where(eq(lmsSubmissionsTable.id, existingSub.id))
+      .returning();
+    submission = updated!;
+  } else {
+    const [created] = await db
+      .insert(lmsSubmissionsTable)
+      .values({
+        assignmentId,
+        studentId: numStudentId,
+        studentName: studentName || "Ngann",
+        studentAvatar: studentAvatar || "NG",
+        fileUrl: fileUrl || null,
+        fileName: fileName || null,
+        fileSize: fileSize || null,
+        textContent: textContent || null,
+        status: "submitted",
+      })
+      .returning();
+    submission = created!;
+  }
+
+  await db.insert(lmsActivitiesTable).values({
+    title: `${studentName || "Học viên"} vừa nộp bài tập`,
+    detail: assignment.title,
+    time: "Vừa xong",
+    kind: "completion",
+  });
+
+  res.status(201).json(formatSubmission(submission));
+};
+
+router.post("/assignments/:id/submit", submitAssignmentHandler);
+router.post("/lms/assignments/:id/submit", submitAssignmentHandler);
+
+const getSubmissionsHandler = async (req: any, res: any): Promise<void> => {
+  await ensureLmsSeeded();
+  const assignmentId = parseId(req.params.id);
+  const studentIdParam = req.query.studentId;
+
+  const conditions = [eq(lmsSubmissionsTable.assignmentId, assignmentId)];
+  if (studentIdParam) {
+    conditions.push(eq(lmsSubmissionsTable.studentId, Number(studentIdParam)));
+  }
+
+  const list = await db
+    .select()
+    .from(lmsSubmissionsTable)
+    .where(and(...conditions))
+    .orderBy(desc(lmsSubmissionsTable.id));
+
+  res.json(list.map(formatSubmission));
+};
+
+router.get("/assignments/:id/subs", getSubmissionsHandler);
+router.get("/lms/assignments/:id/subs", getSubmissionsHandler);
+
+const gradeSubmissionHandler = async (req: any, res: any): Promise<void> => {
+  await ensureLmsSeeded();
+  const id = parseId(req.params.id);
+  const { grade, feedback, gradedBy } = req.body;
+
+  const [submission] = await db
+    .select()
+    .from(lmsSubmissionsTable)
+    .where(eq(lmsSubmissionsTable.id, id))
+    .limit(1);
+
+  if (!submission) {
+    res.status(404).json({ error: "Không tìm thấy bài nộp để chấm điểm." });
+    return;
+  }
+
+  const [updated] = await db
+    .update(lmsSubmissionsTable)
+    .set({
+      status: "graded",
+      grade: Number(grade),
+      feedback: feedback ? String(feedback).trim() : "Đã hoàn thành bài tập.",
+      gradedBy: gradedBy ? String(gradedBy).trim() : "Cô Bui Ngan",
+      gradedAt: new Date().toISOString(),
+    })
+    .where(eq(lmsSubmissionsTable.id, id))
+    .returning();
+
+  await db.insert(lmsActivitiesTable).values({
+    title: `${gradedBy || "Giảng viên"} vừa chấm điểm bài tập`,
+    detail: `${submission.studentName} · ${grade} điểm`,
+    time: "Vừa xong",
+    kind: "quiz",
+  });
+
+  res.json(formatSubmission(updated!));
+};
+
+router.patch("/submissions/:id/grade", gradeSubmissionHandler);
+router.patch("/lms/submissions/:id/grade", gradeSubmissionHandler);
 
 export default router;

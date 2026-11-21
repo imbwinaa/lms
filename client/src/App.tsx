@@ -8,6 +8,7 @@ import { AppShell } from '@/components/layout';
 import {
   Dashboard,
   Courses,
+  CourseDetail,
   Learners,
   Paths,
   Certificates,
@@ -34,6 +35,8 @@ function Router() {
           <AppShell>
             <Switch>
               <Route path="/" component={Dashboard} />
+              <Route path="/dashboard" component={Dashboard} />
+              <Route path="/courses/:id" component={CourseDetail} />
               <Route path="/courses" component={Courses} />
               <Route path="/learners" component={Learners} />
               <Route path="/paths" component={Paths} />

@@ -96,8 +96,8 @@ authRouter.post("/login", async (req: Request, res: Response) => {
   }
 });
 
-// 2. ĐĂNG KÝ (SIGNUP)
-authRouter.post("/signup", async (req: Request, res: Response) => {
+// 2. ĐĂNG KÝ (SIGNUP / REGISTER)
+const signupHandler = async (req: Request, res: Response) => {
   try {
     await ensureLmsSeeded();
     const parsed = signupSchema.safeParse(req.body);
@@ -172,7 +172,10 @@ authRouter.post("/signup", async (req: Request, res: Response) => {
       message: "Đã có lỗi xảy ra trong quá trình đăng ký. Vui lòng thử lại.",
     });
   }
-});
+};
+
+authRouter.post("/signup", signupHandler);
+authRouter.post("/register", signupHandler);
 
 // 3. THÔNG TIN NGƯỜI DÙNG HIỆN TẠI (GET ME)
 authRouter.get("/me", async (req: Request, res: Response) => {

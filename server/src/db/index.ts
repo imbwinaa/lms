@@ -26,7 +26,9 @@ sqlite.exec(`
     status TEXT NOT NULL DEFAULT 'Đang hoạt động',
     format TEXT NOT NULL DEFAULT 'Native',
     accent TEXT NOT NULL DEFAULT 'teal',
-    instructor_name TEXT NOT NULL DEFAULT 'Cô Bui Ngan'
+    instructor_name TEXT NOT NULL DEFAULT 'Cô Bui Ngan',
+    media_url TEXT,
+    media_type TEXT DEFAULT 'video'
   );
 
   CREATE TABLE IF NOT EXISTS lms_learners (
@@ -108,10 +110,59 @@ sqlite.exec(`
     created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
     expires_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS lms_materials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL REFERENCES lms_courses(id) ON DELETE CASCADE,
+    lesson_number INTEGER DEFAULT 1,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'pdf',
+    file_url TEXT NOT NULL,
+    file_name TEXT,
+    file_size TEXT,
+    description TEXT,
+    uploaded_by TEXT NOT NULL DEFAULT 'Cô Bui Ngan',
+    download_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+  );
+
+  CREATE TABLE IF NOT EXISTS lms_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL REFERENCES lms_courses(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    due_date TEXT NOT NULL,
+    max_points REAL NOT NULL DEFAULT 10,
+    attachment_url TEXT,
+    attachment_name TEXT,
+    created_by TEXT NOT NULL DEFAULT 'Cô Bui Ngan',
+    created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+  );
+
+  CREATE TABLE IF NOT EXISTS lms_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    assignment_id INTEGER NOT NULL REFERENCES lms_assignments(id) ON DELETE CASCADE,
+    student_id INTEGER NOT NULL REFERENCES lms_learners(id) ON DELETE CASCADE,
+    student_name TEXT NOT NULL DEFAULT 'Ngann',
+    student_avatar TEXT NOT NULL DEFAULT 'NG',
+    file_url TEXT,
+    file_name TEXT,
+    file_size TEXT,
+    text_content TEXT,
+    status TEXT NOT NULL DEFAULT 'submitted',
+    grade REAL,
+    feedback TEXT,
+    graded_by TEXT,
+    graded_at TEXT,
+    submitted_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS lms_submissions_assignment_student_unique ON lms_submissions(assignment_id, student_id);
 `);
 
 // Tự động nâng cấp bảng nếu database đã tồn tại từ trước
 try { sqlite.exec("ALTER TABLE lms_courses ADD COLUMN instructor_name TEXT NOT NULL DEFAULT 'Cô Bui Ngan'"); } catch {}
+try { sqlite.exec("ALTER TABLE lms_courses ADD COLUMN media_url TEXT"); } catch {}
+try { sqlite.exec("ALTER TABLE lms_courses ADD COLUMN media_type TEXT DEFAULT 'video'"); } catch {}
 try { sqlite.exec("ALTER TABLE lms_learners ADD COLUMN role TEXT NOT NULL DEFAULT 'student'"); } catch {}
 try { sqlite.exec("ALTER TABLE lms_learners ADD COLUMN password_hash TEXT"); } catch {}
 

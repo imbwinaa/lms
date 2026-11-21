@@ -25,6 +25,9 @@ node_modules
 *.db-journal
 *.db-wal
 *.db-shm
+*.sqlite
+uploads/
+server/uploads/
 
 # IDEs and editors
 /.idea
@@ -62,3 +65,4 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+node_modules

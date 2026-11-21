@@ -6,7 +6,8 @@
     "target": "es2022",
     "outDir": "./dist",
     "rootDir": "./src",
-    "noEmit": true
+    "noEmit": true,
+    "types": ["node", "express"]
   },
   "include": ["src/**/*"]
 }

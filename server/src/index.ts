@@ -4,7 +4,7 @@ import { logger } from "./lib/logger";
 
 const port = Number(process.env["PORT"]) || 5000;
 
-app.listen(port, () => {
+app.listen(port, "0.0.0.0", () => {
   logger.info({ port }, `Server dang chay tai: http://localhost:${port}`);
   console.log(`\n======================================================`);
   console.log(`  HE THONG LMS (NEP HOC) - MAY CHU DU LIEU`);

@@ -10,7 +10,7 @@ import {
 import type { Course, CourseInput } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Notice, Field } from '@/components/common';
+import { Notice, Field, MediaUploader } from '@/components/common';
 
 export type CourseDialogProps = {
   open: boolean;
@@ -24,6 +24,9 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
   const update = useUpdateLmsCourse();
   const [feedback, setFeedback] = useState('');
   const [err, setErr] = useState(false);
+  const [mediaUrl, setMediaUrl] = useState('');
+  const [mediaType, setMediaType] = useState('video');
+  const [mediaTitle, setMediaTitle] = useState('');
   const [form, setForm] = useState<CourseInput>({
     title: '',
     description: '',
@@ -36,6 +39,15 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
 
   useEffect(() => {
     if (open) {
+      if (course) {
+        setMediaUrl((course as any).mediaUrl || '');
+        setMediaType((course as any).mediaType || 'video');
+        setMediaTitle('');
+      } else {
+        setMediaUrl('');
+        setMediaType('video');
+        setMediaTitle('');
+      }
       setForm(
         course
           ? {
@@ -79,8 +91,13 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
       setErr(true);
       setFeedback('Chưa thể lưu khóa học. Vui lòng kiểm tra lại.');
     };
-    if (course) update.mutate({ id: course.id, data: form }, { onSuccess, onError });
-    else create.mutate({ data: form }, { onSuccess, onError });
+    const payload = {
+      ...form,
+      mediaUrl: mediaUrl || undefined,
+      mediaType: mediaType || 'video',
+    };
+    if (course) update.mutate({ id: course.id, data: payload as any }, { onSuccess, onError });
+    else create.mutate({ data: payload as any }, { onSuccess, onError });
   };
 
   return (
@@ -174,6 +191,26 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
               </select>
             </Field>
           </div>
+
+          <div className="space-y-1.5 pt-1">
+            <label className="text-xs font-semibold">Tải lên học liệu đa phương tiện (Video, Audio, SCORM, Slide)</label>
+            <MediaUploader
+              value={mediaUrl}
+              mediaType={mediaType}
+              fileName={mediaTitle}
+              onChange={(url, type, title) => {
+                setMediaUrl(url);
+                setMediaType(type);
+                setMediaTitle(title);
+              }}
+              onRemove={() => {
+                setMediaUrl('');
+                setMediaType('video');
+                setMediaTitle('');
+              }}
+            />
+          </div>
+
           <div className="flex justify-end gap-2 border-t border-border pt-4">
             <Button variant="outline" type="button" onClick={onClose}>
               Hủy

@@ -2,12 +2,15 @@ import { eq } from "drizzle-orm";
 import {
   db,
   lmsActivitiesTable,
+  lmsAssignmentsTable,
   lmsBadgesTable,
   lmsCertificatesTable,
   lmsCoursesTable,
   lmsEnrollmentsTable,
   lmsLearnersTable,
   lmsLearningPathsTable,
+  lmsMaterialsTable,
+  lmsSubmissionsTable,
   lmsXapiEventsTable,
 } from "../db";
 import { hashPassword } from "./auth";
@@ -172,6 +175,161 @@ async function ensureXapiSampleEvents(
   await db.insert(lmsXapiEventsTable).values(xapiSeeds);
 }
 
+async function ensureMaterialsAndAssignments(
+  courses: Array<{ id: number; title: string }>,
+  learners: Array<{ id: number; name: string }>,
+): Promise<void> {
+  const existingMaterials = await db
+    .select({ id: lmsMaterialsTable.id })
+    .from(lmsMaterialsTable)
+    .limit(1);
+
+  const courseIds = new Map(courses.map((c) => [c.title, c.id]));
+  const learnerIds = new Map(learners.map((l) => [l.name, l.id]));
+  const firstCourseId = courses[0]?.id ?? 1;
+  const secondCourseId = courses[1]?.id ?? firstCourseId;
+  const onboardingId = courseIds.get("Hội nhập cùng Nova") ?? firstCourseId;
+  const leadershipId = courseIds.get("Lãnh đạo đội ngũ linh hoạt") ?? secondCourseId;
+  const ngannId = learnerIds.get("Ngann") ?? 3;
+
+  if (existingMaterials.length === 0) {
+    await db.insert(lmsMaterialsTable).values([
+      {
+        courseId: onboardingId,
+        lessonNumber: 1,
+        title: "Đề cương chi tiết học phần & Kế hoạch giảng dạy",
+        type: "pdf",
+        fileUrl: "/uploads/de-cuong-hoc-phan.pdf",
+        fileName: "De_cuong_hoc_phan_2026.pdf",
+        fileSize: "1.2 MB",
+        description: "Bản mô tả chuẩn đầu ra, tài liệu tham khảo và cách tính điểm quá trình.",
+        uploadedBy: "Cô Bui Ngan",
+        downloadCount: 42,
+      },
+      {
+        courseId: onboardingId,
+        lessonNumber: 1,
+        title: "Bài giảng Slide Chương 1: Kỹ năng lắng nghe và giao tiếp tích cực",
+        type: "slide",
+        fileUrl: "/uploads/slide-chuong-1.pdf",
+        fileName: "Slide_Chuong_1_Communication.pptx",
+        fileSize: "4.8 MB",
+        description: "Slide trình chiếu bài giảng lớp lý thuyết tuần 1.",
+        uploadedBy: "Cô Bui Ngan",
+        downloadCount: 38,
+      },
+      {
+        courseId: onboardingId,
+        lessonNumber: 2,
+        title: "Tài liệu đọc thêm: 10 Nguyên tắc giải quyết mâu thuẫn trong làm việc nhóm",
+        type: "doc",
+        fileUrl: "/uploads/tai-lieu-doc-them.pdf",
+        fileName: "Tai_Lieu_Doc_Them_Teamwork.docx",
+        fileSize: "850 KB",
+        description: "Tài liệu chuyên khảo được trích xuất từ giáo trình đào tạo nội bộ.",
+        uploadedBy: "Cô Bui Ngan",
+        downloadCount: 29,
+      },
+      {
+        courseId: onboardingId,
+        lessonNumber: 2,
+        title: "Video minh họa tình huống thực tế: Xử lý khủng hoảng truyền thông",
+        type: "video",
+        fileUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        fileName: "Case_Study_Video.mp4",
+        fileSize: "Online Stream",
+        description: "Video phóng sự thực tế để học viên thảo luận nhóm.",
+        uploadedBy: "Cô Bui Ngan",
+        downloadCount: 51,
+      },
+      {
+        courseId: leadershipId,
+        lessonNumber: 1,
+        title: "Slide bài giảng: Các trường phái triết học & phong cách lãnh đạo",
+        type: "slide",
+        fileUrl: "/uploads/slide-triet-hoc.pdf",
+        fileName: "Phong_Cach_Lanh_Dao_2026.pdf",
+        fileSize: "3.1 MB",
+        description: "Tài liệu tóm tắt hệ thống các lý thuyết quản trị hiện đại.",
+        uploadedBy: "Cô Bui Ngan",
+        downloadCount: 65,
+      },
+    ]);
+  }
+
+  const existingAssignments = await db
+    .select({ id: lmsAssignmentsTable.id })
+    .from(lmsAssignmentsTable)
+    .limit(1);
+
+  if (existingAssignments.length === 0) {
+    const insertedAssignments = await db
+      .insert(lmsAssignmentsTable)
+      .values([
+        {
+          courseId: onboardingId,
+          title: "Bài tập tuần 1: Phân tích tình huống xử lý khiếu nại khách hàng",
+          description:
+            "Học viên đọc kịch bản tình huống trong Slide Chương 1. Viết bài luận từ 500-1000 từ phân tích các bước lắng nghe và đưa ra 2 giải pháp xử lý. Nộp file PDF hoặc gõ trực tiếp.",
+          dueDate: "2026-11-28",
+          maxPoints: 10,
+          attachmentName: "Kich_ban_tinh_huong_mau.pdf",
+          attachmentUrl: "/uploads/kich-ban.pdf",
+          createdBy: "Cô Bui Ngan",
+        },
+        {
+          courseId: onboardingId,
+          title: "Bài thu hoạch giữa kỳ: Xây dựng kế hoạch đào tạo kỹ năng cho tổ nhóm",
+          description:
+            "Lập kế hoạch đào tạo kéo dài 4 tuần cho một nhóm từ 5-10 người. Nêu rõ mục tiêu, nội dung từng buổi và phương thức đánh giá đầu ra.",
+          dueDate: "2026-12-10",
+          maxPoints: 10,
+          attachmentName: "Template_Ke_Hoach_Dao_Tao.docx",
+          attachmentUrl: "/uploads/template.docx",
+          createdBy: "Cô Bui Ngan",
+        },
+        {
+          courseId: leadershipId,
+          title: "Bài luận: Mối quan hệ giữa lắng nghe và lãnh đạo trong kỷ nguyên số",
+          description:
+            "Phân tích quan điểm lãnh đạo phụng sự áp dụng vào kỷ nguyên trí tuệ nhân tạo (AI). Độ dài tối thiểu 800 từ.",
+          dueDate: "2026-12-05",
+          maxPoints: 10,
+          createdBy: "Cô Bui Ngan",
+        },
+      ])
+      .returning();
+
+    const firstAssignment = insertedAssignments[0];
+    if (firstAssignment) {
+      const existingSubmissions = await db
+        .select({ id: lmsSubmissionsTable.id })
+        .from(lmsSubmissionsTable)
+        .limit(1);
+
+      if (existingSubmissions.length === 0) {
+        await db.insert(lmsSubmissionsTable).values({
+          assignmentId: firstAssignment.id,
+          studentId: ngannId,
+          studentName: "Ngann",
+          studentAvatar: "NG",
+          fileName: "Bai_Tap_Tuan_1_Ngann.pdf",
+          fileSize: "450 KB",
+          textContent:
+            "Kính gửi Cô Bui Ngan, em đã hoàn thành bài phân tích tình huống với 3 phương án xử lý theo nguyên tắc 5 bước lắng nghe tích cực.",
+          status: "graded",
+          grade: 9.5,
+          feedback:
+            "Bài làm rất tốt, phân tích thấu đáo và lập luận chặt chẽ. Cần phát huy ở bài tập lớn!",
+          gradedBy: "Cô Bui Ngan",
+          gradedAt: "2026-11-19 09:15",
+          submittedAt: "2026-11-18 14:30",
+        });
+      }
+    }
+  }
+}
+
 let seedPromise: Promise<void> | undefined;
 
 async function seedLmsData(): Promise<void> {
@@ -181,7 +339,7 @@ async function seedLmsData(): Promise<void> {
     .limit(1);
   if (existing.length > 0) {
     const learners = await db
-      .select({ id: lmsLearnersTable.id, passwordHash: lmsLearnersTable.passwordHash })
+      .select({ id: lmsLearnersTable.id, name: lmsLearnersTable.name, passwordHash: lmsLearnersTable.passwordHash })
       .from(lmsLearnersTable);
     for (const l of learners) {
       if (!l.passwordHash) {
@@ -202,6 +360,8 @@ async function seedLmsData(): Promise<void> {
           .where(eq(lmsLearningPathsTable.id, path.id));
       }
     }
+    const courses = await db.select({ id: lmsCoursesTable.id, title: lmsCoursesTable.title }).from(lmsCoursesTable);
+    await ensureMaterialsAndAssignments(courses, learners);
     return;
   }
 
@@ -363,6 +523,8 @@ async function seedLmsData(): Promise<void> {
       kind: "quiz",
     },
   ]);
+
+  await ensureMaterialsAndAssignments(courses, learners);
 }
 
 export function ensureLmsSeeded(): Promise<void> {

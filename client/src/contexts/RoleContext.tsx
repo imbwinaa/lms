@@ -60,6 +60,7 @@ interface RoleContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  canSwitchRole: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   signup: (data: SignupData) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
@@ -162,6 +163,11 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('lms_auth_token', data.token);
       localStorage.setItem('lms_user', JSON.stringify(data.user));
       localStorage.setItem('lms_active_role', data.user.role);
+      if (data.user.role === 'admin') {
+        localStorage.setItem('lms_admin_access', 'true');
+      } else {
+        localStorage.removeItem('lms_admin_access');
+      }
 
       return { success: true, message: data.message };
     } catch {
@@ -210,12 +216,16 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     setActiveUser(null);
     localStorage.removeItem('lms_auth_token');
     localStorage.removeItem('lms_user');
+    localStorage.removeItem('lms_admin_access');
   };
 
   // 4. Chuyển đổi vai trò / Demo fast login
   const switchRole = async (newRole: UserRole) => {
     setRoleState(newRole);
     localStorage.setItem('lms_active_role', newRole);
+    if (newRole === 'admin') {
+      localStorage.setItem('lms_admin_access', 'true');
+    }
 
     try {
       const res = await fetch('/api/auth/demo-login', {
@@ -230,6 +240,9 @@ export function RoleProvider({ children }: { children: ReactNode }) {
           setActiveUser(data.user);
           localStorage.setItem('lms_auth_token', data.token);
           localStorage.setItem('lms_user', JSON.stringify(data.user));
+          if (data.user.role === 'admin') {
+            localStorage.setItem('lms_admin_access', 'true');
+          }
           return;
         }
       }
@@ -248,6 +261,11 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   // Người dùng hiện tại (nếu có tài khoản đăng nhập thì dùng tài khoản đó, ngược lại fallback sang profile của role)
   const user: RoleUser = activeUser ?? ROLE_PROFILES[role];
   const isAuthenticated = Boolean(token && activeUser);
+  const canSwitchRole = Boolean(
+    role === 'admin' ||
+    user.role === 'admin' ||
+    (typeof window !== 'undefined' && localStorage.getItem('lms_admin_access') === 'true')
+  );
 
   return (
     <RoleContext.Provider
@@ -257,6 +275,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         token,
         isAuthenticated,
         isLoading,
+        canSwitchRole,
         login,
         signup,
         logout,
