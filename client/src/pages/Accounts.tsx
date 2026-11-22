@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Lock, LockOpen, MoreHorizontal, Pencil, Plus, Search, Trash2, UserPlus, Users } from 'lucide-react';
 import {
-  getErrorMessage,
   getListLmsAccountsQueryKey,
   getListLmsCoursesQueryKey,
   invalidateLms,
@@ -24,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Heading, Notice, QueryState, Avatar } from '@/components/common';
+import { Heading, QueryState, Avatar } from '@/components/common';
 import {
   ConfirmDialog,
   CreateAccountDialog,
@@ -33,6 +32,7 @@ import {
   ResetPasswordDialog,
 } from '@/components/dialogs';
 import { useRole } from '@/contexts/RoleContext';
+import { notify } from '@/lib/toast';
 
 type Filter = 'all' | UserRole | 'locked';
 
@@ -59,8 +59,6 @@ export default function Accounts() {
   const [editing, setEditing] = useState<Learner | null>(null);
   const [resetting, setResetting] = useState<Learner | null>(null);
   const [confirm, setConfirm] = useState<PendingConfirm>(null);
-  const [notice, setNotice] = useState('');
-  const [noticeError, setNoticeError] = useState(false);
   const updateRole = useUpdateLmsAccountRole();
   const updateStatus = useUpdateLmsAccountStatus();
   const deleteAccount = useDeleteLmsAccount();
@@ -83,19 +81,13 @@ export default function Accounts() {
     return `${l.name} ${l.email} ${l.team}`.toLowerCase().includes(search.toLowerCase());
   });
 
-  const flash = (message: string, error = false) => {
-    setNoticeError(error);
-    setNotice(message);
-    if (!error) setTimeout(() => setNotice(current => (current === message ? '' : current)), 3500);
-  };
-
   const handleUpdateRole = async (account: Learner, newRole: UserRole) => {
     try {
       await updateRole.mutateAsync({ id: account.id, data: { role: newRole } });
       await invalidateLms(qc);
-      flash(`Đã cập nhật vai trò của ${account.name}.`);
+      notify.success(`Đã cập nhật vai trò của ${account.name}.`);
     } catch (err) {
-      flash(getErrorMessage(err, 'Chưa thể đổi vai trò. Vui lòng thử lại.'), true);
+      notify.error(err, 'Chưa thể đổi vai trò. Vui lòng thử lại.');
     }
   };
 
@@ -103,9 +95,13 @@ export default function Accounts() {
     try {
       await updateStatus.mutateAsync({ id: account.id, data: { status } });
       await invalidateLms(qc);
-      flash(status === 'locked' ? `Đã khóa tài khoản ${account.name}.` : `Đã mở khóa tài khoản ${account.name}.`);
+      if (status === 'locked') {
+        notify.success(`Đã khóa tài khoản ${account.name}.`, 'Người dùng đã bị đăng xuất khỏi mọi thiết bị.');
+      } else {
+        notify.success(`Đã mở khóa tài khoản ${account.name}.`);
+      }
     } catch (err) {
-      flash(getErrorMessage(err, 'Chưa thể cập nhật trạng thái tài khoản.'), true);
+      notify.error(err, 'Chưa thể cập nhật trạng thái tài khoản.');
     } finally {
       setConfirm(null);
     }
@@ -115,9 +111,9 @@ export default function Accounts() {
     try {
       const result = await deleteAccount.mutateAsync({ id: account.id });
       await invalidateLms(qc);
-      flash(result.message);
+      notify.success(result.message);
     } catch (err) {
-      flash(getErrorMessage(err, 'Chưa thể xóa tài khoản.'), true);
+      notify.error(err, 'Chưa thể xóa tài khoản.');
     } finally {
       setConfirm(null);
     }
@@ -155,7 +151,6 @@ export default function Accounts() {
           </div>
         }
       />
-      {notice && <Notice message={notice} error={noticeError} onClose={() => setNotice('')} />}
       <Card className="mb-5 border-card-border shadow-2xs">
         <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
@@ -316,14 +311,14 @@ export default function Accounts() {
       <CreateAccountDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={account => flash(`Đã cấp tài khoản cho ${account.name}.`)}
+        onCreated={account => notify.success(`Đã cấp tài khoản cho ${account.name}.`, account.email)}
       />
       <EditAccountDialog
         account={editing}
         onClose={() => setEditing(null)}
-        onSaved={account => flash(`Đã cập nhật thông tin của ${account.name}.`)}
+        onSaved={account => notify.success(`Đã cập nhật thông tin của ${account.name}.`)}
       />
-      <ResetPasswordDialog account={resetting} onClose={() => setResetting(null)} onReset={message => flash(message)} />
+      <ResetPasswordDialog account={resetting} onClose={() => setResetting(null)} onReset={message => notify.success(message, 'Các phiên đăng nhập cũ đã bị thu hồi.')} />
       <ConfirmDialog
         open={confirm?.kind === 'lock'}
         title="Khóa tài khoản?"

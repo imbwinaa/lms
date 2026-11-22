@@ -5,6 +5,7 @@ import { getErrorMessage, invalidateLms, useAutoEnrollLearners } from '@/api';
 import type { Course, Learner } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Notice, Avatar, Field } from '@/components/common';
+import { notify } from '@/lib/toast';
 
 export type EnrollDialogProps = {
   open: boolean;
@@ -40,7 +41,9 @@ export function EnrollDialog({ open, onClose, learners, courses }: EnrollDialogP
       {
         onSuccess: result => {
           void invalidateLms(qc);
-          setMessage(`${result.message} (${result.enrolled} học sinh mới ghi danh).`);
+          const course = courses.find(c => String(c.id) === courseId);
+          notify.success(`Đã ghi danh ${result.enrolled} học sinh mới.`, course ? `${result.message} · ${course.title}` : result.message);
+          onClose();
         },
         onError: err => {
           setError(true);

@@ -5,6 +5,7 @@ import { UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Field, Notice } from '@/components/common';
+import { notify } from '@/lib/toast';
 import {
   formatDate,
   formatFileSize,
@@ -72,6 +73,7 @@ export function SubmitAssignmentDialog({
       });
       await invalidateLms(queryClient);
       onSubmitted?.(saved);
+      notify.success(existingSubmission ? 'Đã cập nhật bài nộp.' : 'Đã nộp bài thành công.', assignment.title);
       onClose();
     } catch (err) {
       setError(true);

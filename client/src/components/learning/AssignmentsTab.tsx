@@ -17,10 +17,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, QueryState } from '@/components/common';
+import { notify } from '@/lib/toast';
 import {
   formatDate,
   formatDateTime,
-  getErrorMessage,
   invalidateLms,
   useDeleteAssignment,
   useGetLmsCourse,
@@ -146,8 +146,9 @@ function AssignmentCard({
     try {
       await deleteAssignment.mutateAsync({ id: asg.id });
       await invalidateLms(queryClient);
+      notify.success('Đã xóa bài tập.', asg.title);
     } catch (err) {
-      alert(getErrorMessage(err, 'Chưa thể xóa bài tập.'));
+      notify.error(err, 'Chưa thể xóa bài tập.');
     }
   };
 

@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Field, Notice } from '@/components/common';
+import { notify } from '@/lib/toast';
 import {
   formatFileSize,
   getErrorMessage,
   invalidateLms,
   uploadBrowserFile,
   useCreateCourseMaterial,
+  useGetCourseOutline,
   type Material,
   type MaterialType,
 } from '@/api';
@@ -31,7 +33,10 @@ export function CreateMaterialDialog({ open, courseId, onClose, onCreated }: Cre
   const [linkUrl, setLinkUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [description, setDescription] = useState('');
-  const [lessonNumber, setLessonNumber] = useState(1);
+  // Bài học (trong studio) chứa tài liệu; null = tài liệu chung của khóa học
+  const [lessonId, setLessonId] = useState<number | null>(null);
+  const outlineQuery = useGetCourseOutline(courseId, { query: { enabled: open && courseId > 0 } });
+  const sections = outlineQuery.data?.sections ?? [];
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState(false);
@@ -45,6 +50,7 @@ export function CreateMaterialDialog({ open, courseId, onClose, onCreated }: Cre
     setDescription('');
     setLinkUrl('');
     setFile(null);
+    setLessonId(null);
     setFeedback('');
     setError(false);
   };
@@ -93,12 +99,13 @@ export function CreateMaterialDialog({ open, courseId, onClose, onCreated }: Cre
           fileUrl,
           fileName,
           fileSize,
-          lessonNumber,
+          lessonId: lessonId ?? undefined,
           description: description.trim() || undefined,
         },
       });
       await invalidateLms(queryClient);
       onCreated?.(created);
+      notify.success('Đã đăng tài liệu bài giảng.', created.title);
       reset();
       onClose();
     } catch (err) {
@@ -150,16 +157,26 @@ export function CreateMaterialDialog({ open, courseId, onClose, onCreated }: Cre
               </select>
             </Field>
 
-            <Field label="Gắn vào Bài số">
+            <Field label="Gắn vào bài học">
               <select
-                value={lessonNumber}
-                onChange={e => setLessonNumber(Number(e.target.value))}
+                value={lessonId ?? ''}
+                onChange={e => setLessonId(e.target.value ? Number(e.target.value) : null)}
+                disabled={outlineQuery.isLoading}
                 className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm font-medium"
               >
-                <option value={1}>Bài 1: Nhập môn & Định hướng</option>
-                <option value={2}>Bài 2: Kiến thức trọng tâm</option>
-                <option value={3}>Bài 3: Thực hành kỹ năng</option>
-                <option value={4}>Bài 4: Tổng kết & Đánh giá</option>
+                <option value="">Tài liệu chung của khóa học</option>
+                {sections.map(section =>
+                  section.lessons.length ? (
+                    <optgroup key={section.id} label={section.title}>
+                      {section.lessons.map(lesson => (
+                        <option key={lesson.id} value={lesson.id}>
+                          {lesson.title}
+                          {lesson.isPublished ? '' : ' (nháp)'}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null,
+                )}
               </select>
             </Field>
           </div>
