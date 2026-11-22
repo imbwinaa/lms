@@ -26,6 +26,8 @@ node_modules
 *.db-wal
 *.db-shm
 *.sqlite
+# Cơ sở dữ liệu PGlite cục bộ (phát triển)
+.pglite/
 uploads/
 server/uploads/
 

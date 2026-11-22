@@ -16,7 +16,8 @@
     "build:server": "pnpm --filter server build",
     "db:push": "pnpm --filter server db:push",
     "db:studio": "pnpm --filter server db:studio",
-    "codegen": "orval --config orval.config.ts"
+    "codegen": "orval --config orval.config.ts",
+    "db:generate": "pnpm --filter server db:generate"
   },
   "devDependencies": {
     "concurrently": "^10.0.7",

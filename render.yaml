@@ -1,12 +1,12 @@
 # Render Blueprint — một web service phục vụ cả API (/api) lẫn giao diện React (client/dist).
+# Dữ liệu nằm trên Supabase (PostgreSQL), tệp tải lên nằm trên Cloudflare R2,
+# nên service không cần ổ đĩa và có thể chạy gói Free (gói Free sẽ "ngủ" khi không có truy cập).
 # Hướng dẫn chi tiết: README.md → "Deploy to Render".
 services:
   - type: web
     name: nep-hoc-lms-backend
     runtime: node
-    # Cần gói trả phí (Starter trở lên) để gắn ổ đĩa lưu SQLite + file tải lên.
-    # Gói Free không có ổ đĩa bền vững: dữ liệu sẽ mất sau mỗi lần deploy/khởi động lại.
-    plan: starter
+    plan: free
     region: singapore
     # NODE_ENV=development chỉ cho bước cài đặt để có devDependencies (vite, typescript) khi build.
     buildCommand: >-
@@ -16,10 +16,6 @@ services:
       pnpm --filter client build
     startCommand: pnpm --filter server start
     healthCheckPath: /api/healthz
-    disk:
-      name: lms-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -27,13 +23,10 @@ services:
         value: "22"
       - key: PORT
         value: 10000
-      # Cơ sở dữ liệu SQLite và file tải lên nằm trên ổ đĩa bền vững
-      - key: DATABASE_PATH
-        value: /var/data/lms.db
-      - key: UPLOADS_DIR
-        value: /var/data/uploads
-      # Lần khởi động đầu tiên (DB trống) chỉ tạo 1 quản trị viên — không có dữ liệu mẫu.
-      # Render sẽ hỏi 2 giá trị này khi tạo Blueprint.
+      # Supabase → Connect → "Session pooler" (IPv4). Bảng được tạo tự động khi khởi động (migration).
+      - key: DATABASE_URL
+        sync: false
+      # Lần khởi động đầu tiên (DB chưa có tài khoản) chỉ tạo 1 quản trị viên — không có dữ liệu mẫu.
       - key: SEED_ADMIN_EMAIL
         sync: false
       # Mật khẩu ban đầu của quản trị viên đầu tiên (≥ 8 ký tự)
@@ -45,7 +38,7 @@ services:
       - key: CORS_ORIGIN
         sync: false
       # KHÔNG đặt ENABLE_DEMO_LOGIN ở production.
-      # Cloudflare R2 (tùy chọn). Bỏ trống -> file tải lên lưu trên ổ đĩa /var/data/uploads.
+      # Cloudflare R2 — nơi lưu tệp tải lên. Không đặt -> tệp lưu tạm trên máy chủ và MẤT khi Render khởi động lại.
       - key: R2_ACCOUNT_ID
         sync: false
       - key: R2_ACCESS_KEY_ID

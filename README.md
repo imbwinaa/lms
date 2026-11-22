@@ -5,10 +5,10 @@ A learning management system for schools and training teams, with three roles: *
 | Part | Stack |
 | --- | --- |
 | `client/` | React 19, Vite 6, Tailwind CSS 4, TanStack Query, wouter |
-| `server/` | Node.js 22, Express 5, Drizzle ORM, SQLite (`better-sqlite3`) |
+| `server/` | Node.js 22, Express 5, Drizzle ORM, PostgreSQL (Supabase in production, PGlite locally) |
 | `docs/api-spec.yaml` | OpenAPI contract. `pnpm codegen` generates the client hooks and the server's Zod validation from it |
 
-Uploaded files are stored on the server's disk, or in Cloudflare R2 if you configure it.
+Data lives in PostgreSQL. Uploaded files go to Cloudflare R2 when it's configured, otherwise to the server's `uploads/` folder.
 
 ---
 
@@ -37,9 +37,10 @@ Create `server/.env` from `server/.env.example`. For local work, turn on the one
 
 ```dotenv
 PORT=5000
-DATABASE_PATH=lms.db
 ENABLE_DEMO_LOGIN=true
 ```
+
+Leave `DATABASE_URL` **unset** for local work. The server then uses [PGlite](https://pglite.dev), a full PostgreSQL that runs inside Node and keeps its data in `server/.pglite`. Nothing to install, and no native modules to compile. To work against Supabase instead, set `DATABASE_URL` (see [section 5](#5-environment-variables)).
 
 Start the API and the web app together:
 
@@ -50,7 +51,7 @@ pnpm dev
 - Web app: http://localhost:3000 (Vite forwards `/api` and `/uploads` to port 5000)
 - API: http://localhost:5000/api/healthz
 
-On first start the server creates `server/lms.db` and fills it with **demo data**: sample courses, students, materials, assignments and certificates. That happens because demo data is on by default outside production (`SEED_DEMO_DATA`). Every demo account uses the password `123456`, or `SEED_DEFAULT_PASSWORD` if you set it:
+On first start the server creates the tables (it runs the migrations in `server/drizzle/`) and fills them with **demo data**: sample courses, students, materials, assignments and certificates. That happens because demo data is on by default outside production (`SEED_DEMO_DATA`). Every demo account uses the password `123456`, or `SEED_DEFAULT_PASSWORD` if you set it:
 
 | Role | Email |
 | --- | --- |
@@ -68,24 +69,22 @@ There is no public sign-up. Admins manage accounts on the **Người dùng & Ph�
 | `pnpm --filter server typecheck` | Type-checks the server |
 | `pnpm build` | Builds the web app into `client/dist` and type-checks the server |
 | `pnpm --filter server set-password <email> <password>` | Resets a user's password from the command line and signs them out everywhere (useful if no admin can log in) |
+| `pnpm db:generate` | After changing `server/src/db/schema`, writes a new SQL migration to `server/drizzle/`. Commit it; the server applies it on its next start |
 
-To reset local data, stop the server and delete `server/lms.db*`.
+To reset local data, stop the server and delete the `server/.pglite` folder.
 
 ---
 
 ## 2. Choosing a hosting setup
 
-The backend keeps its data in a **SQLite file on disk**. That has two consequences:
-
-- It needs a **long-running server with a persistent disk**. Serverless platforms such as Vercel Functions or Netlify Functions can't host the API.
-- It runs as **a single instance**. That is plenty for one school, but it can't scale out horizontally.
+The backend is a long-running Node server (Express), so serverless platforms such as Vercel Functions can't host it. Its data lives in **Supabase (PostgreSQL)** and uploaded files in **Cloudflare R2**, so the server itself keeps nothing it can't lose: no disk is needed.
 
 | Setup | When to use it |
 | --- | --- |
 | **A. Render only, one service** (recommended) | Express serves the API *and* the built web app from one URL. No CORS settings, upload links just work, and there's one bill and one log. |
 | **B. Vercel (frontend) + Render (API)** | You want Vercel's preview deployments or CDN for the frontend. It's more configuration, see [section 4](#4-alternative-frontend-on-vercel-api-on-render). |
 
-> **Don't use Render's Free plan for real data.** Free web services can't have a persistent disk, so the database and uploaded files are wiped on every deploy and restart. The Free plan also sleeps when idle.
+> **Render's Free plan works**, with two caveats. A free service sleeps after about 15 minutes without traffic, so the next visit waits about a minute for it to wake up; choose **Starter** if that matters. And without R2, uploaded files are kept on the server's own disk, which Render wipes on every deploy and restart, so **configure R2** for real use.
 
 ---
 
@@ -95,28 +94,33 @@ The repository includes a Render Blueprint (`render.yaml`) that sets up everythi
 
 | Setting | Value |
 | --- | --- |
-| Service | One Node web service, **Starter** plan, Singapore region |
+| Service | One Node web service, **Free** plan (change to Starter to avoid sleeping), Singapore region |
 | Build | Installs dependencies with the pinned pnpm, then builds `client/dist` |
 | Start | `pnpm --filter server start`, which serves `/api`, `/uploads` and the web app |
-| Disk | 1 GB persistent disk at `/var/data`, holding `lms.db` and `uploads/` |
+| Database | Supabase PostgreSQL via `DATABASE_URL`. Tables are created and updated automatically on start (migrations) |
+| Files | Cloudflare R2 (`R2_*`) |
 | Health check | `/api/healthz` |
 
 ### Steps
 
-1. **Push the code to GitHub**, including `render.yaml`.
-2. In the Render dashboard, choose **New → Blueprint** and select this repository. Render reads `render.yaml`.
-3. Render asks for the variables marked `sync: false`:
+1. **Get the Supabase connection string.** In Supabase open your project, then **Connect**, and copy the **Session pooler** string. It looks like `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`; put your database password in place of `[YOUR-PASSWORD]`.
+
+   Don't use the "Direct connection" string (`db.<project-ref>.supabase.co`). That host only has an IPv6 address, and Render can't reach it (*getaddrinfo ENOTFOUND*).
+2. **Push the code to GitHub**, including `render.yaml`. Render must use the same repository you push to.
+3. In the Render dashboard, choose **New → Blueprint** and select this repository. Render reads `render.yaml`.
+4. Render asks for the variables marked `sync: false`:
+   - **`DATABASE_URL`** (required): the Session pooler string from step 1.
    - **`SEED_ADMIN_EMAIL`** (required): the email of the first administrator.
    - **`SEED_DEFAULT_PASSWORD`** (required): at least 8 characters, the first administrator's starting password.
 
      In production the database starts **empty except for this one admin**, with no demo courses or students. Without these two values the server refuses to start on an empty database. Both are only read once, when the database is created; changing them later has no effect.
    - **`CORS_ORIGIN`**: leave empty for this setup, because the browser and the API share one origin.
-   - **`R2_*`**: leave empty to store uploads on the disk, or fill all of them to use Cloudflare R2.
-4. Click **Apply**. The first build takes a few minutes, mostly compiling `better-sqlite3`.
-5. Open `https://<service-name>.onrender.com` and sign in with `SEED_ADMIN_EMAIL` and `SEED_DEFAULT_PASSWORD`. Then **change that password** and create the real accounts (see [Operations](#6-operations-accounts-backups-updates)).
+   - **`R2_*`**: fill all of them, including `R2_PUBLIC_URL` (the bucket's public `r2.dev` address or your own domain). Without a public URL, file links stop working after 7 days.
+5. Click **Apply**. The first start creates all tables in Supabase.
+6. Open `https://<service-name>.onrender.com` and sign in with `SEED_ADMIN_EMAIL` and `SEED_DEFAULT_PASSWORD`. Then **change that password** and create the real accounts (see [Operations](#6-operations-accounts-backups-updates)).
 
    To try the app with sample data on a throwaway instance, set `SEED_DEMO_DATA=true` *before the first start*. Never do this on the instance that holds real data.
-6. Optional: add your own domain under **Settings → Custom Domains**. Render provides HTTPS automatically.
+7. Optional: add your own domain under **Settings → Custom Domains**. Render provides HTTPS automatically.
 
 ### Setting it up by hand instead of with the Blueprint
 
@@ -128,16 +132,14 @@ Create a **Web Service** from the repository with these settings:
 | Build command | `npm install -g corepack@latest && corepack enable && NODE_ENV=development pnpm install --frozen-lockfile && pnpm --filter client build` |
 | Start command | `pnpm --filter server start` |
 | Health check path | `/api/healthz` |
-| Instance type | Starter or higher |
-| Disk | Mount path `/var/data`, 1 GB |
-| Environment | `NODE_ENV=production`, `NODE_VERSION=22`, `DATABASE_PATH=/var/data/lms.db`, `UPLOADS_DIR=/var/data/uploads`, `SEED_ADMIN_EMAIL=<your email>`, `SEED_DEFAULT_PASSWORD=<secret>` |
+| Instance type | Free, or Starter to avoid sleeping |
+| Environment | `NODE_ENV=production`, `NODE_VERSION=22`, `DATABASE_URL=<Supabase Session pooler>`, `SEED_ADMIN_EMAIL=<your email>`, `SEED_DEFAULT_PASSWORD=<secret>`, `R2_*` |
 
 The install step uses `NODE_ENV=development` because pnpm skips devDependencies when `NODE_ENV=production`, and the web app build needs `vite`.
 
-### Things to know about a service with a disk
+### Database changes
 
-- A service with an attached disk **runs as a single instance**, and each deploy causes a short downtime while the old instance stops.
-- Only files under `/var/data` survive a deploy. That's why `DATABASE_PATH` and `UPLOADS_DIR` both point there.
+Tables are managed with Drizzle migrations in `server/drizzle/`. The server applies any new ones on start, so a deploy that changes the schema needs nothing extra. Supabase keeps a record of applied migrations in the `drizzle.__drizzle_migrations` table.
 
 ---
 
@@ -195,8 +197,10 @@ Optionally, change the Render build command to skip the web app build: drop `&& 
 | --- | --- | --- | --- |
 | `PORT` | no | `5000` | HTTP port (Render sets `10000`) |
 | `NODE_ENV` | prod | – | `production` turns on JSON logs and the seed-password check |
-| `DATABASE_PATH` | prod | `./lms.db` | SQLite file. On Render: `/var/data/lms.db` |
-| `UPLOADS_DIR` | prod | `./uploads` | Folder for uploaded files when R2 isn't configured. On Render: `/var/data/uploads` |
+| `DATABASE_URL` | prod | – | PostgreSQL connection string. For Supabase use the **Session pooler** (IPv4). Unset = local PGlite. Production refuses to start without it |
+| `DATABASE_POOL_MAX` | no | `10` | Maximum database connections. Keep it low on Supabase's free tier |
+| `PGLITE_DIR` | no | `./.pglite` | Where local PGlite stores its data. `memory://` keeps it in memory (used by the tests) |
+| `UPLOADS_DIR` | no | `./uploads` | Folder for uploaded files when R2 isn't configured. Not persistent on Render |
 | `SEED_DEMO_DATA` | no | `true` in dev, `false` in production | `true` fills an empty database with sample courses, students and demo accounts. When `false`, only the first admin is created, and demo content is never added later |
 | `SEED_ADMIN_EMAIL` | prod | – | Email of the first admin, created only when the database has no accounts and demo data is off |
 | `SEED_ADMIN_NAME` | no | `Quản trị viên` | Display name of the first admin |
@@ -204,7 +208,7 @@ Optionally, change the Render build command to skip the web app build: drop `&& 
 | `CORS_ORIGIN` | setup B | localhost only | Comma-separated list of frontend origins allowed to call the API |
 | `ENABLE_DEMO_LOGIN` | no | off | `true` turns on one-click demo accounts. **Never in production**: anyone could sign in as admin |
 | `CLIENT_DIST` | no | `../client/dist` | Built web app that Express should serve |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` | no | – | Store uploads in Cloudflare R2 instead of on disk. Set all of them, with `R2_PUBLIC_URL` being the bucket's public `r2.dev` or custom domain |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` | prod | – | Store uploads in Cloudflare R2 instead of on disk. Set all of them, with `R2_PUBLIC_URL` being the bucket's public `r2.dev` or custom domain |
 | `LOG_LEVEL` | no | `info` | Pino log level |
 
 ### Client (Vercel only)
@@ -234,18 +238,12 @@ pnpm --filter server set-password admin@your-school.edu.vn '<new password>'
 
 ### Backups
 
-Everything lives in `/var/data`: the `lms.db` file and the `uploads/` folder. You have two options:
-
-- Use Render's disk snapshots. Check the **Disks** section of the service for snapshot and restore options.
-- Make your own copy from the Shell, then download it:
-
-  ```bash
-  cd server && node -e "new (require('better-sqlite3'))(process.env.DATABASE_PATH).backup('/var/data/backup-' + new Date().toISOString().slice(0,10) + '.db').then(() => console.log('backup done'))"
-  ```
+- **Database:** Supabase backs up the database daily (how long backups are kept depends on your Supabase plan; see **Database → Backups**). For your own copy, run `pg_dump "<DATABASE_URL>" > backup.sql` from any machine with the PostgreSQL client tools.
+- **Uploaded files:** they live in your R2 bucket. Copy it with any S3-compatible tool (for example `rclone`) if you want an off-site copy.
 
 ### Updating
 
-Push to the branch Render deploys from (usually `main`). Render rebuilds and restarts automatically. New database columns are added on startup, and existing data is kept.
+Push to the branch Render deploys from (usually `main`). Render rebuilds and restarts automatically. New migrations are applied on startup, and existing data is kept.
 
 ---
 
@@ -254,11 +252,14 @@ Push to the branch Render deploys from (usually `main`). Render rebuilds and res
 | Symptom | Fix |
 | --- | --- |
 | Deploy fails with *"Cơ sở dữ liệu chưa có tài khoản nào: hãy đặt SEED_ADMIN_EMAIL…"* or *"Hãy đặt SEED_DEFAULT_PASSWORD…"* | Set `SEED_ADMIN_EMAIL` and an 8+ character `SEED_DEFAULT_PASSWORD` in the Render environment, then redeploy |
-| Sample courses or students appear in production | The database was created with `SEED_DEMO_DATA=true`. Delete the demo accounts and courses on the Accounts and Courses pages, or start over with an empty disk |
+| Sample courses or students appear in production | The database was created with `SEED_DEMO_DATA=true`. Delete the demo accounts and courses on the Accounts and Courses pages, or start over with an empty database |
+| Start fails with *getaddrinfo ENOTFOUND db.….supabase.co* | You used Supabase's direct connection (IPv6 only). Use the **Session pooler** string instead |
+| Start fails with *Thiếu DATABASE_URL* | Set `DATABASE_URL` in the Render environment |
+| *password authentication failed* | Check the password in `DATABASE_URL`. For the pooler the user name is `postgres.<project-ref>`, not just `postgres` |
 | Build fails with `vite: not found` | The install step ran with `NODE_ENV=production`. Keep `NODE_ENV=development` in front of `pnpm install` in the build command |
 | Build fails on `corepack` or on the pnpm version | Make sure the build command starts with `npm install -g corepack@latest && corepack enable`, and that `package.json` keeps its `packageManager` field |
-| `better-sqlite3` error at startup (*"Could not locate the bindings file"*) | The native module wasn't built. Check that `pnpm-workspace.yaml` still allows the `better-sqlite3` build, and clear the build cache (**Manual Deploy → Clear build cache & deploy**) |
-| Data or uploads disappear after a deploy | The service has no disk, or `DATABASE_PATH`/`UPLOADS_DIR` don't point inside the disk's mount path |
+| Uploaded files disappear after a deploy | R2 isn't configured, so files were kept on the server's disk, which Render resets. Set the `R2_*` variables |
+| File links stop working after a week | `R2_PUBLIC_URL` is missing, so links were signed URLs that expire after 7 days. Make the bucket public (or add a domain) and set `R2_PUBLIC_URL` |
 | Browser console shows a CORS error (setup B) | Add the exact frontend origin, with `https://` and without a trailing slash, to `CORS_ORIGIN` |
 | Uploaded files return 404 on Vercel (setup B) | Add the `/uploads` rewrite from [4.2](#42-frontend-on-vercel), or configure R2 |
 | Too many failed logins | The login form locks for 15 minutes after 10 failed attempts from the same IP and email. Wait, or restart the service |
