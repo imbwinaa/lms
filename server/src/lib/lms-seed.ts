@@ -1,6 +1,7 @@
 import { asc, count, eq, isNull } from "drizzle-orm";
 import {
   db,
+  migrateDatabase,
   lmsActivitiesTable,
   lmsAssignmentsTable,
   lmsBadgesTable,
@@ -617,7 +618,10 @@ export function ensureLmsSeeded(): Promise<void> {
   if (!seedPromise) {
     // Dữ liệu mẫu (và gán giảng viên cho khóa mẫu) chỉ chạy ở chế độ demo;
     // ở chế độ thật, khóa học không có giảng viên là do admin chủ động gỡ — không tự gán lại.
-    const run = isDemoSeedEnabled() ? seedLmsData().then(backfillCourseInstructors).then(seedDemoOutlines) : seedFirstAdmin();
+    // Tạo/cập nhật bảng (migration) trước khi khởi tạo dữ liệu
+    const run = migrateDatabase().then(() =>
+      isDemoSeedEnabled() ? seedLmsData().then(backfillCourseInstructors).then(seedDemoOutlines) : seedFirstAdmin(),
+    );
     seedPromise = run.catch((error: unknown) => {
       seedPromise = undefined;
       throw error;

@@ -136,9 +136,11 @@ async function resolveInstructor(instructorId: number) {
   return instructor;
 }
 
-function isUniqueViolation(error: unknown) {
-  const code = typeof error === "object" && error !== null ? String((error as { code?: unknown }).code) : "";
-  return code.startsWith("SQLITE_CONSTRAINT_UNIQUE");
+/** PostgreSQL unique_violation (23505); Drizzle có thể bọc lỗi gốc trong `cause` */
+function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const { code, cause } = error as { code?: unknown; cause?: unknown };
+  return code === "23505" || isUniqueViolation(cause);
 }
 
 router.get("/lms/courses", async (req, res) => {
@@ -287,17 +289,15 @@ router.post("/lms/enrollments/auto-enroll", async (req, res) => {
     throw notFound("Không tìm thấy học viên (chỉ ghi danh được tài khoản học viên).");
   }
 
-  // better-sqlite3: giao dịch phải đồng bộ (không dùng async/await bên trong)
-  const result = db.transaction((tx) => {
-    const existing = tx
+  const result = await db.transaction(async (tx) => {
+    const existing = await tx
       .select({ learnerId: lmsEnrollmentsTable.learnerId })
       .from(lmsEnrollmentsTable)
-      .where(and(eq(lmsEnrollmentsTable.courseId, courseId), inArray(lmsEnrollmentsTable.learnerId, uniqueIds)))
-      .all();
+      .where(and(eq(lmsEnrollmentsTable.courseId, courseId), inArray(lmsEnrollmentsTable.learnerId, uniqueIds)));
     const existingIds = new Set(existing.map((item) => item.learnerId));
     const newLearners = learners.filter((learner) => !existingIds.has(learner.id));
     if (newLearners.length > 0) {
-      tx.insert(lmsEnrollmentsTable)
+      await tx.insert(lmsEnrollmentsTable)
         .values(
           newLearners.map((learner) => ({
             learnerId: learner.id,
@@ -305,24 +305,20 @@ router.post("/lms/enrollments/auto-enroll", async (req, res) => {
             status: "Đang học",
             completedLessonIds: [],
           })),
-        )
-        .run();
-      tx.update(lmsCoursesTable)
+        );
+      await tx.update(lmsCoursesTable)
         .set({ enrolled: sql`${lmsCoursesTable.enrolled} + ${newLearners.length}` })
-        .where(eq(lmsCoursesTable.id, courseId))
-        .run();
-      tx.update(lmsLearnersTable)
+        .where(eq(lmsCoursesTable.id, courseId));
+      await tx.update(lmsLearnersTable)
         .set({ activeCourse: course.title })
-        .where(inArray(lmsLearnersTable.id, newLearners.map((item) => item.id)))
-        .run();
-      tx.insert(lmsActivitiesTable)
+        .where(inArray(lmsLearnersTable.id, newLearners.map((item) => item.id)));
+      await tx.insert(lmsActivitiesTable)
         .values({
           title: `${newLearners.length} học viên vừa được ghi danh`,
           detail: course.title,
           time: "Vừa xong",
           kind: "enrollment",
-        })
-        .run();
+        });
     }
     return {
       enrolled: newLearners.length,

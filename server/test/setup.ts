@@ -2,9 +2,10 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 
-// Cơ sở dữ liệu & thư mục upload tạm, không đụng tới lms.db thật và không gửi lên R2
+// PostgreSQL trong bộ nhớ (PGlite) cho mỗi file test, thư mục upload tạm, không gửi lên R2/Supabase
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lms-test-"));
-process.env.DATABASE_PATH = path.join(dir, "test.db");
+delete process.env.DATABASE_URL;
+process.env.PGLITE_DIR = "memory://";
 process.env.UPLOADS_DIR = path.join(dir, "uploads");
 process.env.LOG_LEVEL = "silent";
 process.env.NODE_ENV = "test";

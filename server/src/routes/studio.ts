@@ -252,19 +252,19 @@ router.put("/lms/courses/:id/outline/order", async (req, res) => {
     throw badRequest("Danh sách bài học không khớp với khóa học. Hãy tải lại trang và thử lại.");
   }
 
-  db.transaction((tx) => {
-    sections.forEach((section, sectionIndex) => {
-      tx.update(lmsCourseSectionsTable)
+  await db.transaction(async (tx) => {
+    for (const [sectionIndex, section] of sections.entries()) {
+      await tx
+        .update(lmsCourseSectionsTable)
         .set({ position: sectionIndex })
-        .where(eq(lmsCourseSectionsTable.id, section.id))
-        .run();
-      section.lessonIds.forEach((lessonId, lessonIndex) => {
-        tx.update(lmsLessonsTable)
+        .where(eq(lmsCourseSectionsTable.id, section.id));
+      for (const [lessonIndex, lessonId] of section.lessonIds.entries()) {
+        await tx
+          .update(lmsLessonsTable)
           .set({ sectionId: section.id, position: lessonIndex })
-          .where(eq(lmsLessonsTable.id, lessonId))
-          .run();
-      });
-    });
+          .where(eq(lmsLessonsTable.id, lessonId));
+      }
+    }
   });
 
   res.json(await buildOutline(user, course, true));
@@ -408,10 +408,10 @@ router.put("/lms/lessons/:id/questions", async (req, res) => {
     }
   });
 
-  db.transaction((tx) => {
-    tx.delete(lmsQuizQuestionsTable).where(eq(lmsQuizQuestionsTable.lessonId, id)).run();
+  await db.transaction(async (tx) => {
+    await tx.delete(lmsQuizQuestionsTable).where(eq(lmsQuizQuestionsTable.lessonId, id));
     if (questions.length) {
-      tx.insert(lmsQuizQuestionsTable)
+      await tx.insert(lmsQuizQuestionsTable)
         .values(
           questions.map((q, index) => ({
             lessonId: id,
@@ -421,10 +421,9 @@ router.put("/lms/lessons/:id/questions", async (req, res) => {
             correctIndex: q.correctIndex,
             explanation: q.explanation?.trim() || null,
           })),
-        )
-        .run();
+        );
     }
-    tx.update(lmsLessonsTable).set({ updatedAt: new Date().toISOString() }).where(eq(lmsLessonsTable.id, id)).run();
+    await tx.update(lmsLessonsTable).set({ updatedAt: new Date().toISOString() }).where(eq(lmsLessonsTable.id, id));
   });
 
   res.json(await buildLessonResponse(user, await findLesson(id), true));

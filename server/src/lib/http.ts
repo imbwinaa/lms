@@ -37,7 +37,7 @@ export function parseOr400<S extends ZodType>(schema: S, input: unknown): z.infe
   return result.data;
 }
 
-/** Chuẩn hóa thời gian lưu trong SQLite (ISO hoặc "YYYY-MM-DD HH:MM:SS") thành ISO 8601 */
+/** Chuẩn hóa chuỗi thời gian đã lưu (ISO hoặc "YYYY-MM-DD HH:MM:SS") thành ISO 8601 */
 export function toIso(value: string | null | undefined): string | null {
   if (!value) return null;
   const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value) ? `${value.replace(" ", "T")}Z` : value;

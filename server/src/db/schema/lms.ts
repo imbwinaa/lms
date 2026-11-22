@@ -1,15 +1,20 @@
 import { createInsertSchema } from "drizzle-zod";
 import {
+  boolean,
+  index,
   integer,
+  jsonb,
+  pgTable,
   real,
-  sqliteTable,
+  serial,
   text,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+  type AnyPgColumn,
+} from "drizzle-orm/pg-core";
 import { z } from "zod";
 
-export const lmsCoursesTable = sqliteTable("lms_courses", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsCoursesTable = pgTable("lms_courses", {
+  id: serial("id").primaryKey(),
   title: text("title").notNull().unique(),
   description: text("description").notNull(),
   category: text("category").notNull(),
@@ -22,16 +27,15 @@ export const lmsCoursesTable = sqliteTable("lms_courses", {
   format: text("format").notNull().default("Native"),
   accent: text("accent").notNull().default("teal"),
   instructorName: text("instructor_name").notNull().default("Cô Bui Ngan"),
-  // Giảng viên phụ trách (chủ sở hữu khóa học). Khai báo không có FK ở Drizzle
-  // vì lms_learners được định nghĩa phía sau; ràng buộc nằm trong SQL khởi tạo.
-  instructorId: integer("instructor_id"),
+  // Giảng viên phụ trách (chủ sở hữu khóa học)
+  instructorId: integer("instructor_id").references((): AnyPgColumn => lmsLearnersTable.id, { onDelete: "set null" }),
   mediaUrl: text("media_url"),
   mediaType: text("media_type").default("video"),
   coverImageUrl: text("cover_image_url"),
-});
+}, (t) => [index("lms_courses_instructor_idx").on(t.instructorId)]);
 
-export const lmsLearnersTable = sqliteTable("lms_learners", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsLearnersTable = pgTable("lms_learners", {
+  id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash"),
@@ -46,7 +50,7 @@ export const lmsLearnersTable = sqliteTable("lms_learners", {
   lastActive: text("last_active").notNull().default("Chưa hoạt động"),
 });
 
-export const lmsSessionsTable = sqliteTable("lms_sessions", {
+export const lmsSessionsTable = pgTable("lms_sessions", {
   token: text("token").primaryKey(),
   userId: integer("user_id")
     .notNull()
@@ -55,14 +59,14 @@ export const lmsSessionsTable = sqliteTable("lms_sessions", {
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
   expiresAt: text("expires_at").notNull(),
-});
+}, (t) => [index("lms_sessions_user_idx").on(t.userId)]);
 
-export const lmsLearningPathsTable = sqliteTable("lms_learning_paths", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsLearningPathsTable = pgTable("lms_learning_paths", {
+  id: serial("id").primaryKey(),
   title: text("title").notNull().unique(),
   description: text("description").notNull(),
   courses: integer("courses").notNull(),
-  courseTitles: text("course_titles", { mode: "json" })
+  courseTitles: jsonb("course_titles")
     .$type<string[]>()
     .notNull()
     .default([]),
@@ -72,10 +76,10 @@ export const lmsLearningPathsTable = sqliteTable("lms_learning_paths", {
   accent: text("accent").notNull().default("teal"),
 });
 
-export const lmsEnrollmentsTable = sqliteTable(
+export const lmsEnrollmentsTable = pgTable(
   "lms_enrollments",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: serial("id").primaryKey(),
     learnerId: integer("learner_id")
       .notNull()
       .references(() => lmsLearnersTable.id, { onDelete: "cascade" }),
@@ -83,7 +87,7 @@ export const lmsEnrollmentsTable = sqliteTable(
       .notNull()
       .references(() => lmsCoursesTable.id, { onDelete: "cascade" }),
     status: text("status").notNull().default("Đang học"),
-    completedLessonIds: text("completed_lesson_ids", { mode: "json" })
+    completedLessonIds: jsonb("completed_lesson_ids")
       .$type<string[]>()
       .notNull()
       .default([]),
@@ -99,8 +103,8 @@ export const lmsEnrollmentsTable = sqliteTable(
   ],
 );
 
-export const lmsCertificatesTable = sqliteTable("lms_certificates", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsCertificatesTable = pgTable("lms_certificates", {
+  id: serial("id").primaryKey(),
   learner: text("learner").notNull(),
   course: text("course").notNull(),
   serial: text("serial").notNull().unique(),
@@ -108,18 +112,18 @@ export const lmsCertificatesTable = sqliteTable("lms_certificates", {
   status: text("status").notNull().default("Đã cấp"),
 });
 
-export const lmsActivitiesTable = sqliteTable("lms_activities", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsActivitiesTable = pgTable("lms_activities", {
+  id: serial("id").primaryKey(),
   title: text("title").notNull(),
   detail: text("detail").notNull(),
   time: text("time").notNull(),
   kind: text("kind").notNull(),
 });
 
-export const lmsBadgesTable = sqliteTable(
+export const lmsBadgesTable = pgTable(
   "lms_badges",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: serial("id").primaryKey(),
     learnerId: integer("learner_id")
       .notNull()
       .references(() => lmsLearnersTable.id, { onDelete: "cascade" }),
@@ -136,8 +140,8 @@ export const lmsBadgesTable = sqliteTable(
   ],
 );
 
-export const lmsXapiEventsTable = sqliteTable("lms_xapi_events", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsXapiEventsTable = pgTable("lms_xapi_events", {
+  id: serial("id").primaryKey(),
   learnerId: integer("learner_id")
     .notNull()
     .references(() => lmsLearnersTable.id, { onDelete: "cascade" }),
@@ -145,7 +149,7 @@ export const lmsXapiEventsTable = sqliteTable("lms_xapi_events", {
   objectId: text("object_id").notNull(),
   score: real("score").notNull(),
   timestamp: text("timestamp").notNull(),
-  raw: text("raw", { mode: "json" }).$type<Record<string, unknown>>(),
+  raw: jsonb("raw").$type<Record<string, unknown>>(),
 });
 
 export const insertLmsCourseSchema = createInsertSchema(lmsCoursesTable).omit({
@@ -173,14 +177,14 @@ export const insertLmsXapiEventSchema = createInsertSchema(
   lmsXapiEventsTable,
 ).omit({ id: true });
 
-export const lmsMaterialsTable = sqliteTable("lms_materials", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsMaterialsTable = pgTable("lms_materials", {
+  id: serial("id").primaryKey(),
   courseId: integer("course_id")
     .notNull()
     .references(() => lmsCoursesTable.id, { onDelete: "cascade" }),
   lessonNumber: integer("lesson_number").default(1),
-  // Bài học chứa tài liệu (không khai báo FK ở Drizzle vì lms_lessons ở phía sau; ràng buộc nằm trong SQL)
-  lessonId: integer("lesson_id"),
+  // Bài học chứa tài liệu
+  lessonId: integer("lesson_id").references((): AnyPgColumn => lmsLessonsTable.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   type: text("type").notNull().default("pdf"),
   fileUrl: text("file_url").notNull(),
@@ -192,10 +196,10 @@ export const lmsMaterialsTable = sqliteTable("lms_materials", {
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
-});
+}, (t) => [index("lms_materials_course_idx").on(t.courseId)]);
 
-export const lmsAssignmentsTable = sqliteTable("lms_assignments", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsAssignmentsTable = pgTable("lms_assignments", {
+  id: serial("id").primaryKey(),
   courseId: integer("course_id")
     .notNull()
     .references(() => lmsCoursesTable.id, { onDelete: "cascade" }),
@@ -209,12 +213,12 @@ export const lmsAssignmentsTable = sqliteTable("lms_assignments", {
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
-});
+}, (t) => [index("lms_assignments_course_idx").on(t.courseId)]);
 
-export const lmsSubmissionsTable = sqliteTable(
+export const lmsSubmissionsTable = pgTable(
   "lms_submissions",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: serial("id").primaryKey(),
     assignmentId: integer("assignment_id")
       .notNull()
       .references(() => lmsAssignmentsTable.id, { onDelete: "cascade" }),
@@ -270,8 +274,8 @@ export type LmsSubmission = typeof lmsSubmissionsTable.$inferSelect;
 // ---------------------------------------------------------------------------
 // Nội dung khóa học: chương -> bài học -> câu hỏi quiz, và tiến độ học viên
 // ---------------------------------------------------------------------------
-export const lmsCourseSectionsTable = sqliteTable("lms_course_sections", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsCourseSectionsTable = pgTable("lms_course_sections", {
+  id: serial("id").primaryKey(),
   courseId: integer("course_id")
     .notNull()
     .references(() => lmsCoursesTable.id, { onDelete: "cascade" }),
@@ -280,10 +284,10 @@ export const lmsCourseSectionsTable = sqliteTable("lms_course_sections", {
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
-});
+}, (t) => [index("lms_course_sections_course_idx").on(t.courseId, t.position)]);
 
-export const lmsLessonsTable = sqliteTable("lms_lessons", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsLessonsTable = pgTable("lms_lessons", {
+  id: serial("id").primaryKey(),
   courseId: integer("course_id")
     .notNull()
     .references(() => lmsCoursesTable.id, { onDelete: "cascade" }),
@@ -296,7 +300,7 @@ export const lmsLessonsTable = sqliteTable("lms_lessons", {
   contentHtml: text("content_html").notNull().default(""),
   mediaUrl: text("media_url"),
   durationMinutes: integer("duration_minutes").notNull().default(0),
-  isPublished: integer("is_published", { mode: "boolean" }).notNull().default(false),
+  isPublished: boolean("is_published").notNull().default(false),
   passScore: integer("pass_score").notNull().default(70),
   createdAt: text("created_at")
     .notNull()
@@ -304,40 +308,43 @@ export const lmsLessonsTable = sqliteTable("lms_lessons", {
   updatedAt: text("updated_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
-});
+}, (t) => [
+  index("lms_lessons_section_idx").on(t.sectionId, t.position),
+  index("lms_lessons_course_idx").on(t.courseId),
+]);
 
-export const lmsQuizQuestionsTable = sqliteTable("lms_quiz_questions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsQuizQuestionsTable = pgTable("lms_quiz_questions", {
+  id: serial("id").primaryKey(),
   lessonId: integer("lesson_id")
     .notNull()
     .references(() => lmsLessonsTable.id, { onDelete: "cascade" }),
   position: integer("position").notNull().default(0),
   prompt: text("prompt").notNull(),
-  options: text("options", { mode: "json" }).$type<string[]>().notNull().default([]),
+  options: jsonb("options").$type<string[]>().notNull().default([]),
   correctIndex: integer("correct_index").notNull(),
   explanation: text("explanation"),
-});
+}, (t) => [index("lms_quiz_questions_lesson_idx").on(t.lessonId, t.position)]);
 
-export const lmsQuizAttemptsTable = sqliteTable("lms_quiz_attempts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lmsQuizAttemptsTable = pgTable("lms_quiz_attempts", {
+  id: serial("id").primaryKey(),
   lessonId: integer("lesson_id")
     .notNull()
     .references(() => lmsLessonsTable.id, { onDelete: "cascade" }),
   learnerId: integer("learner_id")
     .notNull()
     .references(() => lmsLearnersTable.id, { onDelete: "cascade" }),
-  answers: text("answers", { mode: "json" }).$type<number[]>().notNull().default([]),
+  answers: jsonb("answers").$type<number[]>().notNull().default([]),
   score: integer("score").notNull(),
-  passed: integer("passed", { mode: "boolean" }).notNull().default(false),
+  passed: boolean("passed").notNull().default(false),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
-});
+}, (t) => [index("lms_quiz_attempts_lesson_learner_idx").on(t.lessonId, t.learnerId)]);
 
-export const lmsLessonCompletionsTable = sqliteTable(
+export const lmsLessonCompletionsTable = pgTable(
   "lms_lesson_completions",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: serial("id").primaryKey(),
     lessonId: integer("lesson_id")
       .notNull()
       .references(() => lmsLessonsTable.id, { onDelete: "cascade" }),

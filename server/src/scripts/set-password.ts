@@ -4,11 +4,11 @@
  *   pnpm --filter server set-password <email> <mật-khẩu-mới>
  *
  * Trên Render: mở tab "Shell" của web service và chạy lệnh trên
- * (biến DATABASE_PATH của service đã có sẵn trong Shell).
+ * (biến DATABASE_URL của service đã có sẵn trong Shell).
  */
 import "dotenv/config";
 import { sql } from "drizzle-orm";
-import { db, lmsLearnersTable } from "../db";
+import { closeDatabase, db, lmsLearnersTable } from "../db";
 import { deleteUserSessions, hashPassword } from "../lib/auth";
 
 async function main() {
@@ -34,6 +34,7 @@ async function main() {
   }
   await deleteUserSessions(user.id);
   console.log(`Đã đổi mật khẩu cho ${user.name} (${user.role}) và đăng xuất mọi phiên cũ.`);
+  await closeDatabase();
 }
 
 main().catch((error) => {
