@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   FileText,
   FileVideo,
@@ -16,7 +17,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { lmsStorage, type CourseMaterial } from '@/services/lmsStorage';
+import {
+  formatDate,
+  getErrorMessage,
+  invalidateLms,
+  recordMaterialDownload,
+  useDeleteMaterial,
+  useGetLmsCourse,
+  useListCourseMaterials,
+  type Material,
+} from '@/api';
+import { QueryState } from '@/components/common';
 import { CreateMaterialDialog } from '@/components/dialogs/CreateMaterialDialog';
 import { useRole } from '@/contexts/RoleContext';
 
@@ -25,20 +36,16 @@ export interface MaterialsTabProps {
 }
 
 export function MaterialsTab({ courseId }: MaterialsTabProps) {
-  const { role } = useRole();
-  const [materials, setMaterials] = useState<CourseMaterial[]>(() => lmsStorage.getMaterials(courseId));
+  const { canManageCourse } = useRole();
+  const queryClient = useQueryClient();
+  const courseQuery = useGetLmsCourse(courseId);
+  const materialsQuery = useListCourseMaterials(courseId);
+  const deleteMaterial = useDeleteMaterial();
+  const canManage = canManageCourse(courseQuery.data);
+  const materials = materialsQuery.data ?? [];
   const [filterType, setFilterType] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [activePreview, setActivePreview] = useState<CourseMaterial | null>(null);
-
-  useEffect(() => {
-    lmsStorage.fetchMaterials(courseId).then(items => {
-      if (items && items.length > 0) {
-        setMaterials(items);
-      }
-    });
-  }, [courseId]);
 
   const filtered = useMemo(() => {
     return materials.filter(m => {
@@ -50,31 +57,36 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
     });
   }, [materials, filterType, search]);
 
-  const handleDelete = (id: string) => {
-    if (confirm('Bạn có chắc chắn muốn xóa tài liệu này khỏi khóa học?')) {
-      lmsStorage.deleteMaterial(id);
-      setMaterials(lmsStorage.getMaterials(courseId));
+  const handleDelete = async (id: number) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa tài liệu này khỏi khóa học?')) return;
+    try {
+      await deleteMaterial.mutateAsync({ id });
+      await invalidateLms(queryClient);
+    } catch (err) {
+      alert(getErrorMessage(err, 'Chưa thể xóa tài liệu.'));
     }
   };
 
-  const handleDownload = (m: CourseMaterial) => {
-    lmsStorage.incrementDownload(m.id);
-    setMaterials(lmsStorage.getMaterials(courseId));
-    // Mở liên kết hoặc tải xuống
+  const handleDownload = (m: Material) => {
+    // Ghi nhận lượt tải (không chặn việc mở tệp)
+    recordMaterialDownload(m.id)
+      .then(() => invalidateLms(queryClient))
+      .catch(() => {});
     if (m.type === 'video' || m.type === 'link') {
-      window.open(m.fileUrl, '_blank');
+      window.open(m.fileUrl, '_blank', 'noopener');
     } else {
       const link = document.createElement('a');
       link.href = m.fileUrl;
       link.download = m.fileName || `${m.title}.pdf`;
       link.target = '_blank';
+      link.rel = 'noopener';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     }
   };
 
-  const getTypeBadge = (type: CourseMaterial['type']) => {
+  const getTypeBadge = (type: Material['type']) => {
     switch (type) {
       case 'slide':
         return (
@@ -148,7 +160,7 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
             />
           </div>
 
-          {role !== 'student' && (
+          {canManage && (
             <Button size="sm" onClick={() => setDialogOpen(true)} className="h-9 gap-1.5 shrink-0">
               <Plus size={15} />
               <span>Đăng tài liệu mới</span>
@@ -158,12 +170,13 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
       </div>
 
       {/* Danh sách học liệu */}
+      <QueryState loading={materialsQuery.isLoading} error={materialsQuery.error} refetch={() => materialsQuery.refetch()}>
       {filtered.length === 0 ? (
         <Card className="border-dashed p-8 text-center text-muted-foreground">
           <BookOpen className="mx-auto mb-2 h-9 w-9 opacity-40" />
           <p className="text-sm font-semibold">Chưa có tài liệu nào trong danh mục này</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {role !== 'student' ? 'Bấm "Đăng tài liệu mới" để chia sẻ học liệu cho lớp.' : 'Giảng viên sẽ cập nhật tài liệu sớm.'}
+            {canManage ? 'Bấm "Đăng tài liệu mới" để chia sẻ học liệu cho lớp.' : 'Giảng viên sẽ cập nhật tài liệu sớm.'}
           </p>
         </Card>
       ) : (
@@ -199,10 +212,14 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
                       <span>Người đăng: <b className="text-foreground">{m.uploadedBy}</b></span>
                       <span>·</span>
-                      <span>Ngày đăng: {m.uploadedAt}</span>
+                      <span>Ngày đăng: {formatDate(m.createdAt)}</span>
                       <span>·</span>
-                      <span>Dung lượng: {m.fileSize}</span>
-                      <span>·</span>
+                      {m.fileSize && (
+                        <>
+                          <span>Dung lượng: {m.fileSize}</span>
+                          <span>·</span>
+                        </>
+                      )}
                       <span>{m.downloadCount} lượt tải</span>
                     </div>
                   </div>
@@ -219,10 +236,11 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
                     <span>{m.type === 'video' || m.type === 'link' ? 'Mở liên kết' : 'Tải tài liệu'}</span>
                   </Button>
 
-                  {role !== 'student' && (
+                  {canManage && (
                     <Button
                       size="sm"
                       variant="ghost"
+                      disabled={deleteMaterial.isPending}
                       onClick={() => handleDelete(m.id)}
                       className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                       aria-label="Xóa tài liệu"
@@ -236,13 +254,13 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
           ))}
         </div>
       )}
+      </QueryState>
 
       {/* Modal đăng tài liệu mới */}
       <CreateMaterialDialog
         open={dialogOpen}
         courseId={courseId}
         onClose={() => setDialogOpen(false)}
-        onCreated={() => setMaterials(lmsStorage.getMaterials(courseId))}
       />
     </div>
   );

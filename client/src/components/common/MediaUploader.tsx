@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Notice } from '@/components/common/Notice';
+import { getErrorMessage, listMediaPresets, uploadBrowserFile, uploadFile } from '@/api';
 
 export interface MediaItem {
   id?: string;
@@ -56,13 +57,8 @@ export function MediaUploader({
 
   // Tải danh sách học liệu mẫu từ máy chủ
   useEffect(() => {
-    fetch('/api/upload/presets')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.presets) {
-          setPresets(data.presets);
-        }
-      })
+    listMediaPresets()
+      .then(setPresets)
       .catch(() => {});
   }, []);
 
@@ -92,60 +88,23 @@ export function MediaUploader({
     else if (file.name.endsWith('.zip')) detectedType = 'scorm';
     setCurrentType(detectedType);
 
-    // 2. Mô phỏng tiến trình tải lên sinh động
-    const timer1 = setTimeout(() => {
-      setUploadProgress(45);
-      setStatusText('Đang nén dữ liệu và truyền vào máy chủ localhost:5000...');
-    }, 400);
+    setUploadProgress(45);
+    setStatusText('Đang tải tệp lên máy chủ...');
 
-    const timer2 = setTimeout(() => {
-      setUploadProgress(85);
-      setStatusText('Đang lưu tệp vào thư mục server/uploads...');
-    }, 900);
-
-    // 3. Đọc dữ liệu file base64 và lưu thật vào server/uploads (Cách 2: Real Localhost Storage)
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        clearTimeout(timer1);
-        clearTimeout(timer2);
-        const base64Data = reader.result as string;
-
-        try {
-          const res = await fetch('/api/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              data: base64Data,
-            }),
-          });
-          const result = await res.json();
-          if (res.ok && result.success) {
-            setUploadProgress(100);
-            setStatusText('Hoàn tất! Tệp đã lưu an toàn trên máy chủ.');
-            setPreviewUrl(result.url);
-            onChange(result.url, detectedType, file.name);
-          } else {
-            // Dù backend lỗi nhỏ vẫn giữ Object URL để demo không bị gián đoạn
-            setUploadProgress(100);
-            setStatusText('Đã nạp tệp thành công cho phiên làm việc.');
-            onChange(localBlobUrl, detectedType, file.name);
-          }
-        } catch {
-          setUploadProgress(100);
-          setStatusText('Đã nạp tệp vào bộ nhớ tạm.');
-          onChange(localBlobUrl, detectedType, file.name);
-        } finally {
-          setTimeout(() => setUploading(false), 600);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch {
-      setErrorMsg('Không thể đọc tệp. Vui lòng thử lại với tệp khác.');
-      setUploading(false);
+      const result = await uploadBrowserFile(file);
+      setUploadProgress(100);
+      setStatusText('Hoàn tất! Tệp đã lưu an toàn trên máy chủ.');
+      setPreviewUrl(result.url);
+      onChange(result.url, detectedType, file.name);
+    } catch (err) {
+      // Không lưu URL blob: tạm thời vào dữ liệu khóa học — chỉ hiển thị lỗi
+      setPreviewUrl(value || '');
+      setCurrentTitle(fileName || '');
+      setErrorMsg(err instanceof Error && !('status' in err) ? err.message : getErrorMessage(err, 'Không thể tải tệp lên máy chủ.'));
+    } finally {
+      URL.revokeObjectURL(localBlobUrl);
+      setTimeout(() => setUploading(false), 400);
     }
   };
 
@@ -157,12 +116,7 @@ export function MediaUploader({
     setStatusText(`Đang liên kết học liệu mẫu: ${preset.title}...`);
 
     try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ presetId: preset.id }),
-      });
-      const data = await res.json();
+      await uploadFile({ presetId: preset.id });
       setUploadProgress(100);
       setStatusText('Đã nạp bài giảng mẫu thành công!');
       setPreviewUrl(preset.url);

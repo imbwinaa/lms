@@ -1,77 +1,92 @@
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useState } from 'react';
-import { X, Calendar, Award, FileText, UploadCloud } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Field, Notice } from '@/components/common';
-import { lmsStorage, type CourseAssignment } from '@/services/lmsStorage';
-import { useRole } from '@/contexts/RoleContext';
+import {
+  formatFileSize,
+  getErrorMessage,
+  invalidateLms,
+  uploadBrowserFile,
+  useCreateCourseAssignment,
+  type Assignment,
+} from '@/api';
 
 export interface CreateAssignmentDialogProps {
   open: boolean;
   courseId: number;
   onClose: () => void;
-  onCreated: (assignment: CourseAssignment) => void;
+  onCreated?: (assignment: Assignment) => void;
 }
 
 export function CreateAssignmentDialog({ open, courseId, onClose, onCreated }: CreateAssignmentDialogProps) {
-  const { user } = useRole();
+  const queryClient = useQueryClient();
+  const createAssignment = useCreateCourseAssignment();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [maxPoints, setMaxPoints] = useState(10);
-  const [attachmentName, setAttachmentName] = useState('');
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState(false);
 
   if (!open) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(false);
     if (!title.trim() || !dueDate) {
       setError(true);
       setFeedback('Vui lòng nhập tiêu đề bài tập và hạn nộp.');
       return;
     }
 
-    const created = lmsStorage.addAssignment({
-      courseId,
-      title: title.trim(),
-      description: description.trim() || 'Học viên hoàn thành bài tập theo hướng dẫn và nộp đúng hạn.',
-      dueDate,
-      maxPoints: Number(maxPoints) || 10,
-      attachmentName: attachmentName || undefined,
-      attachmentUrl: attachmentName ? '/uploads/assignment-prompt.pdf' : undefined,
-      createdBy: user.name || 'Cô Bui Ngan',
-    });
-
-    setFeedback('Đã giao bài tập mới thành công!');
-    setTimeout(() => {
-      onCreated(created);
-      onClose();
-      // Reset form
+    setBusy(true);
+    try {
+      let attachmentUrl: string | undefined;
+      if (attachment) {
+        setFeedback('Đang tải đề bài lên máy chủ...');
+        attachmentUrl = (await uploadBrowserFile(attachment)).url;
+      }
+      const created = await createAssignment.mutateAsync({
+        id: courseId,
+        data: {
+          title: title.trim(),
+          description: description.trim() || undefined,
+          dueDate,
+          maxPoints,
+          attachmentUrl,
+          attachmentName: attachment?.name,
+        },
+      });
+      await invalidateLms(queryClient);
+      onCreated?.(created);
       setTitle('');
       setDescription('');
       setDueDate('');
-      setAttachmentName('');
+      setAttachment(null);
       setFeedback('');
-    }, 500);
+      onClose();
+    } catch (err) {
+      setError(true);
+      setFeedback(err instanceof Error && !('status' in err) ? err.message : getErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in fade-in-0 zoom-in-95">
-        <div className="flex items-center justify-between border-b border-border pb-4">
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent aria-describedby={undefined} className="block w-[calc(100%-2rem)] max-w-lg rounded-2xl bg-card shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border pb-4 pr-8">
           <div>
-            <h3 className="font-display text-lg font-bold">Giao bài tập mới (Assignment)</h3>
+            <DialogTitle className="font-display text-lg font-bold leading-tight tracking-normal">Giao bài tập mới (Assignment)</DialogTitle>
             <p className="text-xs text-muted-foreground">Tạo bài tập về nhà, tiểu luận hoặc bài tập tình huống cho học viên.</p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <X size={18} />
-          </button>
         </div>
 
         {feedback && (
@@ -92,12 +107,7 @@ export function CreateAssignmentDialog({ open, courseId, onClose, onCreated }: C
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Hạn nộp (Deadline) *">
-              <Input
-                type="date"
-                value={dueDate}
-                onChange={e => setDueDate(e.target.value)}
-                required
-              />
+              <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required />
             </Field>
 
             <Field label="Thang điểm tối đa">
@@ -122,21 +132,30 @@ export function CreateAssignmentDialog({ open, courseId, onClose, onCreated }: C
           </Field>
 
           <Field label="Đính kèm đề bài mẫu (Tùy chọn)">
-            <Input
-              value={attachmentName}
-              onChange={e => setAttachmentName(e.target.value)}
-              placeholder="VD: De_bai_tuan_2.pdf hoặc Mau_bao_cao.docx"
-            />
+            <div className="relative flex items-center gap-3 rounded-xl border border-dashed border-border p-3 hover:bg-muted/30">
+              <input
+                type="file"
+                onChange={e => setAttachment(e.target.files?.[0] ?? null)}
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip"
+                className="absolute inset-0 cursor-pointer opacity-0"
+              />
+              <UploadCloud className="h-6 w-6 shrink-0 text-primary" />
+              <p className="text-xs font-medium text-foreground">
+                {attachment ? `${attachment.name} (${formatFileSize(attachment.size)})` : 'Chọn tệp đề bài (PDF, Word...)'}
+              </p>
+            </div>
           </Field>
 
           <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
               Hủy
             </Button>
-            <Button type="submit">Giao bài tập</Button>
+            <Button type="submit" disabled={busy}>
+              {busy ? 'Đang giao...' : 'Giao bài tập'}
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

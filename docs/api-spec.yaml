@@ -2,21 +2,38 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: Learning management system API
+  version: 0.2.0
+  description: |
+    Learning management system API.
+
+    Every endpoint except `GET /healthz`, `GET /auth/config`, `POST /auth/login` and
+    `POST /auth/demo-login` requires `Authorization: Bearer <token>`.
+    The acting user is always taken from the token, never from the request body.
+    Errors always use the `ErrorResponse` shape.
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Sessions and identity
   - name: lms
     description: LMS dashboard, learning, and automation
+  - name: content
+    description: Course materials, assignments and submissions
+  - name: upload
+    description: File upload and media presets
+  - name: studio
+    description: Course sections, lessons, quizzes and learner progress
+security:
+  - bearerAuth: []
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
+      security: []
       summary: Health check
       description: Returns server health status
       responses:
@@ -24,8 +41,94 @@ paths:
           description: Healthy
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/HealthStatus"
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+
+  # ---------------------------------------------------------------- AUTH
+  /auth/config:
+    get:
+      operationId: getAuthConfig
+      tags: [auth]
+      security: []
+      summary: Public auth configuration (e.g. whether demo login is enabled)
+      responses:
+        "200":
+          description: Auth configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthConfig" }
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      security: []
+      summary: Sign in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginInput" }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthSession" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: Account is locked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+  /auth/demo-login:
+    post:
+      operationId: demoLogin
+      tags: [auth]
+      security: []
+      summary: Sign in as a seeded demo account (only when ENABLE_DEMO_LOGIN=true)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DemoLoginInput" }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthSession" }
+        "403":
+          description: Account is locked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Current signed-in user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthUser" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Revoke the current session
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+
+  # ---------------------------------------------------------------- DASHBOARD
   /lms/dashboard:
     get:
       operationId: getLmsDashboard
@@ -36,71 +139,15 @@ paths:
           description: LMS overview
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/DashboardSummary"
-  /lms/access/me:
-    get:
-      operationId: getLmsCurrentAccess
-      tags: [lms]
-      summary: Get the signed-in user's LMS role
-      responses:
-        "200":
-          description: Current account access
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AccessUser"
-        "401":
-          description: Sign-in required
-  /lms/access/users:
-    get:
-      operationId: listLmsAccessUsers
-      tags: [lms]
-      summary: List LMS accounts and their access roles
-      responses:
-        "200":
-          description: Account access list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AccessUser"
-        "403":
-          description: Administrator access required
-  /lms/access/users/{id}:
-    patch:
-      operationId: updateLmsAccessUser
-      tags: [lms]
-      summary: Update an account role or access status
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AccessUserUpdate"
-      responses:
-        "200":
-          description: Updated account access
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AccessUser"
-        "403":
-          description: Administrator access required
-        "404":
-          description: Account not found
+              schema: { $ref: "#/components/schemas/DashboardSummary" }
+
+  # ---------------------------------------------------------------- COURSES
   /lms/courses:
     get:
       operationId: listLmsCourses
       tags: [lms]
-      summary: List courses
+      summary: List courses visible to the current user
+      description: Students see active courses and courses they are enrolled in; lecturers and admins see all.
       responses:
         "200":
           description: Course catalog
@@ -108,97 +155,220 @@ paths:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: "#/components/schemas/Course"
+                items: { $ref: "#/components/schemas/Course" }
     post:
       operationId: createLmsCourse
       tags: [lms]
-      summary: Create a course
+      summary: Create a course (lecturer or admin)
+      description: A lecturer becomes the instructor. An admin may set `instructorId`.
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/CourseInput"
+            schema: { $ref: "#/components/schemas/CourseInput" }
       responses:
         "201":
           description: Created course
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/Course"
+              schema: { $ref: "#/components/schemas/Course" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /lms/courses/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: getLmsCourse
+      tags: [lms]
+      summary: Get one course
+      responses:
+        "200":
+          description: Course
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+        "404": { $ref: "#/components/responses/NotFound" }
     patch:
       operationId: updateLmsCourse
       tags: [lms]
-      summary: Update a course
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+      summary: Update a course (instructor or admin)
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/CourseUpdate"
+            schema: { $ref: "#/components/schemas/CourseUpdate" }
       responses:
         "200":
           description: Updated course
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/Course"
-        "404":
-          description: Course not found
+              schema: { $ref: "#/components/schemas/Course" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
     delete:
       operationId: deleteLmsCourse
       tags: [lms]
-      summary: Delete a course and its enrollments
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Course deleted
-        "404":
-          description: Course not found
-  /lms/learners:
-    get:
-      operationId: listLmsLearners
-      tags: [lms]
-      summary: List learners
+      summary: Delete a course and its content (instructor or admin)
       responses:
         "200":
-          description: Learner directory
+          description: Course deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /lms/courses/{id}/learners:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: listCourseLearners
+      tags: [lms]
+      summary: Students enrolled in a course (instructor or admin)
+      responses:
+        "200":
+          description: Enrolled students
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: "#/components/schemas/Learner"
-    post:
-      operationId: createLmsLearner
+                items: { $ref: "#/components/schemas/Learner" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- ACCOUNTS
+  /lms/accounts:
+    get:
+      operationId: listLmsAccounts
       tags: [lms]
-      summary: Create a learner profile
+      summary: List accounts (admin sees everyone, lecturer sees students)
+      responses:
+        "200":
+          description: Account list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Learner" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: createLmsAccount
+      tags: [lms]
+      summary: Create an account with a role and initial password (admin)
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/LearnerInput"
+            schema: { $ref: "#/components/schemas/AccountInput" }
       responses:
         "201":
-          description: Created learner
+          description: Created account
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/Learner"
+              schema: { $ref: "#/components/schemas/Learner" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /lms/accounts/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    patch:
+      operationId: updateLmsAccount
+      tags: [lms]
+      summary: Update an account's name, email or team (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AccountUpdate" }
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Learner" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+    delete:
+      operationId: deleteLmsAccount
+      tags: [lms]
+      summary: Permanently delete an account and its enrollments, submissions and sessions (admin)
+      responses:
+        "200":
+          description: Account deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/accounts/{id}/role:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    patch:
+      operationId: updateLmsAccountRole
+      tags: [lms]
+      summary: Change an account's role (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AccountRoleUpdate" }
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Learner" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/accounts/{id}/status:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    patch:
+      operationId: updateLmsAccountStatus
+      tags: [lms]
+      summary: Lock or unlock an account; locking signs the user out everywhere (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AccountStatusUpdate" }
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Learner" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/accounts/{id}/password:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    put:
+      operationId: resetLmsAccountPassword
+      tags: [lms]
+      summary: Set a new password for an account and sign it out everywhere (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AccountPasswordReset" }
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- CATALOG / GAMIFICATION
   /lms/learning-paths:
     get:
       operationId: listLmsLearningPaths
@@ -211,133 +381,682 @@ paths:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: "#/components/schemas/LearningPath"
+                items: { $ref: "#/components/schemas/LearningPath" }
   /lms/enrollments/auto-enroll:
     post:
       operationId: autoEnrollLearners
       tags: [lms]
-      summary: Automatically enroll learners
+      summary: Enroll learners into a course (instructor or admin)
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/EnrollmentInput"
+            schema: { $ref: "#/components/schemas/EnrollmentInput" }
       responses:
         "201":
-          description: Enrollment results
+          description: Enrollment result
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/EnrollmentResult"
-        "404":
-          description: Course or learners not found
+              schema: { $ref: "#/components/schemas/EnrollmentResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /lms/certificates:
     get:
       operationId: listLmsCertificates
       tags: [lms]
-      summary: List issued certificates
+      summary: List certificates
       responses:
         "200":
-          description: Certificate records
+          description: Certificates
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: "#/components/schemas/Certificate"
+                items: { $ref: "#/components/schemas/Certificate" }
   /lms/leaderboard:
     get:
       operationId: getLmsLeaderboard
       tags: [lms]
-      summary: Get learner leaderboard
+      summary: Get leaderboard
       responses:
         "200":
-          description: Learner rankings
+          description: Leaderboard
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: "#/components/schemas/LeaderboardEntry"
+                items: { $ref: "#/components/schemas/LeaderboardEntry" }
   /lms/badges:
     get:
       operationId: listLmsBadges
       tags: [lms]
-      summary: List learner badges
+      summary: List awarded badges
       responses:
         "200":
-          description: Badges earned by learners
+          description: Badges
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: "#/components/schemas/LearnerBadge"
+                items: { $ref: "#/components/schemas/LearnerBadge" }
   /lms/plugins:
     get:
       operationId: listLmsPlugins
       tags: [lms]
-      summary: List learning plugins
+      summary: List learning standard plugins
       responses:
         "200":
-          description: Configured learning plugins
+          description: Plugins
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: "#/components/schemas/LearningPlugin"
-  /lms/progress/complete:
-    post:
-      operationId: completeLmsLesson
-      tags: [lms]
-      summary: Complete a lesson and issue a certificate when eligible
+                items: { $ref: "#/components/schemas/LearningPlugin" }
+  # ---------------------------------------------------------------- COURSE CONTENT (sections, lessons, quizzes)
+  /lms/courses/{id}/outline:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: getCourseOutline
+      tags: [studio]
+      summary: Sections and lessons of a course, with the current user's progress
+      description: The instructor and admins see unpublished lessons; everyone else sees published lessons only.
+      responses:
+        "200":
+          description: Course outline
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseOutline" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/courses/{id}/outline/order:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    put:
+      operationId: reorderCourseOutline
+      tags: [studio]
+      summary: Reorder sections and lessons (instructor or admin)
+      description: Send every section of the course in the new order, each with the ids of its lessons in order. Lessons may move between sections.
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/LessonCompletionInput"
+            schema: { $ref: "#/components/schemas/OutlineOrderInput" }
       responses:
         "200":
-          description: Progress and certificate status
+          description: Updated outline
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/LessonCompletionResult"
-        "400":
-          description: The learner must reach the passing score
-        "404":
-          description: Course or learner not found
+              schema: { $ref: "#/components/schemas/CourseOutline" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/courses/{id}/sections:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    post:
+      operationId: createCourseSection
+      tags: [studio]
+      summary: Add a section at the end of the course (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SectionInput" }
+      responses:
+        "201":
+          description: Created section
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseSection" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/sections/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    patch:
+      operationId: updateCourseSection
+      tags: [studio]
+      summary: Rename a section (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SectionInput" }
+      responses:
+        "200":
+          description: Updated section
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseSection" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: deleteCourseSection
+      tags: [studio]
+      summary: Delete a section and all its lessons (instructor or admin)
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/courses/{id}/lessons:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    post:
+      operationId: createCourseLesson
+      tags: [studio]
+      summary: Add an unpublished lesson at the end of a section (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LessonInput" }
+      responses:
+        "201":
+          description: Created lesson
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lesson" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/lessons/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: getLesson
+      tags: [studio]
+      summary: Full lesson content. Quiz answers are only included for the instructor and admins.
+      responses:
+        "200":
+          description: Lesson
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lesson" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      operationId: updateLesson
+      tags: [studio]
+      summary: Edit a lesson (instructor or admin). HTML content is sanitized on the server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LessonUpdate" }
+      responses:
+        "200":
+          description: Updated lesson
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lesson" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: deleteLesson
+      tags: [studio]
+      summary: Delete a lesson (instructor or admin)
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/lessons/{id}/questions:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    put:
+      operationId: replaceQuizQuestions
+      tags: [studio]
+      summary: Replace all questions of a quiz lesson (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuizQuestionsInput" }
+      responses:
+        "200":
+          description: Updated lesson
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Lesson" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/lessons/{id}/complete:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    post:
+      operationId: completeLesson
+      tags: [studio]
+      summary: Mark a video, text or document lesson complete for the current student
+      description: Quiz lessons are completed by passing a quiz attempt instead.
+      responses:
+        "200":
+          description: Completion result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LessonCompletionResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/lessons/{id}/quiz-attempts:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    post:
+      operationId: submitQuizAttempt
+      tags: [studio]
+      summary: Submit answers to a quiz lesson. Scored on the server; passing completes the lesson.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuizAttemptInput" }
+      responses:
+        "201":
+          description: Scored attempt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuizAttemptResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /lms/xapi/events:
     post:
       operationId: recordXapiEvent
       tags: [lms]
-      summary: Record an xAPI learning event
+      summary: Record an xAPI event for the current user
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: "#/components/schemas/XapiEventInput"
+            schema: { $ref: "#/components/schemas/XapiEventInput" }
       responses:
         "201":
           description: Recorded xAPI event
           content:
             application/json:
+              schema: { $ref: "#/components/schemas/XapiEvent" }
+
+  # ---------------------------------------------------------------- MATERIALS
+  /lms/courses/{id}/materials:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: listCourseMaterials
+      tags: [content]
+      summary: List materials of a course (enrolled, instructor or admin)
+      responses:
+        "200":
+          description: Materials
+          content:
+            application/json:
               schema:
-                $ref: "#/components/schemas/XapiEvent"
+                type: array
+                items: { $ref: "#/components/schemas/Material" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createCourseMaterial
+      tags: [content]
+      summary: Add a material to a course (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MaterialInput" }
+      responses:
+        "201":
+          description: Created material
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Material" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/materials/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    delete:
+      operationId: deleteMaterial
+      tags: [content]
+      summary: Delete a material (instructor or admin)
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/materials/{id}/download:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    post:
+      operationId: recordMaterialDownload
+      tags: [content]
+      summary: Count a material download
+      responses:
+        "200":
+          description: New download count
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DownloadResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- ASSIGNMENTS
+  /lms/assignments:
+    get:
+      operationId: listMyAssignments
+      tags: [content]
+      summary: Assignments across all courses visible to the current user
+      responses:
+        "200":
+          description: Assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Assignment" }
+  /lms/courses/{id}/assignments:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: listCourseAssignments
+      tags: [content]
+      summary: List assignments of a course (enrolled, instructor or admin)
+      responses:
+        "200":
+          description: Assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Assignment" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createCourseAssignment
+      tags: [content]
+      summary: Create an assignment (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignmentInput" }
+      responses:
+        "201":
+          description: Created assignment
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Assignment" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/assignments/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    delete:
+      operationId: deleteAssignment
+      tags: [content]
+      summary: Delete an assignment and its submissions (instructor or admin)
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- SUBMISSIONS
+  /lms/submissions:
+    get:
+      operationId: listMySubmissions
+      tags: [content]
+      summary: Submissions visible to the current user (own for students, own courses for lecturers)
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/SubmissionStatus" }
+      responses:
+        "200":
+          description: Submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Submission" }
+  /lms/assignments/{id}/submissions:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: listAssignmentSubmissions
+      tags: [content]
+      summary: Submissions of an assignment (students only see their own)
+      responses:
+        "200":
+          description: Submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Submission" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: submitAssignment
+      tags: [content]
+      summary: Submit or resubmit the current student's work
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmissionInput" }
+      responses:
+        "201":
+          description: Saved submission
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Submission" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/submissions/{id}/grade:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    patch:
+      operationId: gradeSubmission
+      tags: [content]
+      summary: Grade a submission (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GradeInput" }
+      responses:
+        "200":
+          description: Graded submission
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Submission" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- UPLOAD
+  /upload:
+    post:
+      operationId: uploadFile
+      tags: [upload]
+      summary: Upload a base64 file or link a preset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadInput" }
+      responses:
+        "201":
+          description: Stored file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "413": { $ref: "#/components/responses/BadRequest" }
+  /upload/presets:
+    get:
+      operationId: listMediaPresets
+      tags: [upload]
+      summary: Built-in sample media library
+      responses:
+        "200":
+          description: Presets
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MediaPreset" }
+  /upload/recent:
+    get:
+      operationId: listRecentUploads
+      tags: [upload]
+      summary: Files stored on the local disk (admin)
+      responses:
+        "200":
+          description: Files
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/UploadedFile" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Unauthorized:
+      description: Sign-in required or invalid credentials
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Forbidden:
+      description: Not allowed for this user
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Conflict:
+      description: Resource already exists
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    TooManyRequests:
+      description: Rate limited
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+
   schemas:
+    # ------------------------------------------------ common
+    ErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+        issues:
+          type: array
+          items:
+            type: object
+            required: [path, message]
+            properties:
+              path: { type: string }
+              message: { type: string }
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
     HealthStatus:
       type: object
+      required: [status]
       properties:
-        status:
-          type: string
-      required:
-        - status
+        status: { type: string }
+    UserRole:
+      type: string
+      enum: [student, lecturer, admin]
+
+    # ------------------------------------------------ auth
+    AuthConfig:
+      type: object
+      required: [demoLoginEnabled]
+      properties:
+        demoLoginEnabled: { type: boolean }
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1 }
+    DemoLoginInput:
+      type: object
+      required: [role]
+      properties:
+        role: { $ref: "#/components/schemas/UserRole" }
+    AuthUser:
+      type: object
+      required: [id, name, email, role, team, avatar, title, points, streak, progress, activeCourse]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role: { $ref: "#/components/schemas/UserRole" }
+        team: { type: string }
+        avatar: { type: string }
+        title: { type: string }
+        points: { type: integer }
+        streak: { type: integer }
+        progress: { type: number }
+        activeCourse: { type: string }
+    AuthSession:
+      type: object
+      required: [token, user, message]
+      properties:
+        token: { type: string }
+        user: { $ref: "#/components/schemas/AuthUser" }
+        message: { type: string }
+
+    # ------------------------------------------------ dashboard
     ActivityItem:
       type: object
       required: [id, title, detail, time, kind]
@@ -368,79 +1087,123 @@ components:
         recentActivity:
           type: array
           items: { $ref: "#/components/schemas/ActivityItem" }
-    AccessUser:
-      type: object
-      required: [id, email, name, role, active, createdAt]
-      properties:
-        id: { type: string }
-        email: { type: string }
-        name: { type: string }
-        role: { type: string, enum: [admin, instructor, learner] }
-        active: { type: boolean }
-        createdAt: { type: string }
-    AccessUserUpdate:
-      type: object
-      properties:
-        role: { type: string, enum: [admin, instructor, learner] }
-        active: { type: boolean }
+
+    # ------------------------------------------------ courses
+    CourseLevel:
+      type: string
+      enum: [Cơ bản, Trung cấp, Nâng cao]
+    CourseStatus:
+      type: string
+      enum: [Đang hoạt động, Bản nháp, Lưu trữ]
+    CourseFormat:
+      type: string
+      enum: [Native, SCORM 1.2, xAPI, H5P]
+    MediaType:
+      type: string
+      enum: [video, audio, document, scorm]
     Course:
       type: object
-      required: [id, title, description, category, level, duration, lessons, enrolled, progress, status, format, accent]
+      required: [id, title, description, category, level, duration, lessons, enrolled, progress, status, format, accent, instructorId, instructorName, mediaUrl, mediaType, coverImageUrl]
       properties:
         id: { type: integer }
         title: { type: string }
         description: { type: string }
         category: { type: string }
-        level: { type: string, enum: [Cơ bản, Trung cấp, Nâng cao] }
+        level: { $ref: "#/components/schemas/CourseLevel" }
         duration: { type: string }
-        lessons: { type: integer }
+        lessons: { type: integer, description: "Number of published lessons" }
         enrolled: { type: integer }
         progress: { type: number }
-        status: { type: string, enum: [Đang hoạt động, Bản nháp, Lưu trữ] }
-        format: { type: string, enum: [Native, SCORM 1.2, xAPI, H5P] }
+        status: { $ref: "#/components/schemas/CourseStatus" }
+        format: { $ref: "#/components/schemas/CourseFormat" }
         accent: { type: string }
+        instructorId: { type: [integer, "null"] }
+        instructorName: { type: string }
+        mediaUrl: { type: [string, "null"] }
+        mediaType: { type: [string, "null"] }
+        coverImageUrl: { type: [string, "null"], description: "16:9 cover used on cards and the course header" }
     CourseInput:
       type: object
-      required: [title, description, category, level, duration, lessons, format]
+      required: [title, description, category, level, duration, format]
       properties:
         title: { type: string, minLength: 2 }
         description: { type: string }
         category: { type: string }
-        level: { type: string, enum: [Cơ bản, Trung cấp, Nâng cao] }
+        level: { $ref: "#/components/schemas/CourseLevel" }
         duration: { type: string }
-        lessons: { type: integer, minimum: 1 }
-        format: { type: string, enum: [Native, SCORM 1.2, xAPI, H5P] }
+        lessons: { type: integer, description: "Deprecated and ignored: counted from published lessons" }
+        format: { $ref: "#/components/schemas/CourseFormat" }
+        instructorId: { type: integer, description: "Admin only; ignored for lecturers" }
+        mediaUrl: { type: [string, "null"] }
+        mediaType: { $ref: "#/components/schemas/MediaType" }
+        coverImageUrl: { type: [string, "null"] }
     CourseUpdate:
       type: object
       properties:
         title: { type: string, minLength: 2 }
         description: { type: string }
         category: { type: string }
-        level: { type: string, enum: [Cơ bản, Trung cấp, Nâng cao] }
+        level: { $ref: "#/components/schemas/CourseLevel" }
         duration: { type: string }
-        lessons: { type: integer, minimum: 1 }
-        status: { type: string, enum: [Đang hoạt động, Bản nháp, Lưu trữ] }
-        format: { type: string, enum: [Native, SCORM 1.2, xAPI, H5P] }
+        lessons: { type: integer, description: "Deprecated and ignored: counted from published lessons" }
+        status: { $ref: "#/components/schemas/CourseStatus" }
+        format: { $ref: "#/components/schemas/CourseFormat" }
+        instructorId: { type: integer, description: "Admin only" }
+        mediaUrl: { type: [string, "null"] }
+        mediaType: { $ref: "#/components/schemas/MediaType" }
+        coverImageUrl: { type: [string, "null"] }
+
+    # ------------------------------------------------ accounts
+    AccountStatus:
+      type: string
+      enum: [active, locked]
     Learner:
       type: object
-      required: [id, name, email, team, points, streak, progress, activeCourse, lastActive]
+      required: [id, name, email, role, status, team, points, streak, progress, activeCourse, lastActive]
       properties:
         id: { type: integer }
         name: { type: string }
         email: { type: string }
+        role: { $ref: "#/components/schemas/UserRole" }
+        status: { $ref: "#/components/schemas/AccountStatus" }
         team: { type: string }
         points: { type: integer }
         streak: { type: integer }
         progress: { type: number }
         activeCourse: { type: string }
         lastActive: { type: string }
-    LearnerInput:
+    AccountInput:
       type: object
-      required: [name, email, team]
+      required: [name, email, role, password]
       properties:
         name: { type: string, minLength: 2 }
         email: { type: string, format: email }
+        role: { $ref: "#/components/schemas/UserRole" }
         team: { type: string }
+        password: { type: string, minLength: 8 }
+    AccountUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 2 }
+        email: { type: string, format: email }
+        team: { type: string, minLength: 1 }
+    AccountRoleUpdate:
+      type: object
+      required: [role]
+      properties:
+        role: { $ref: "#/components/schemas/UserRole" }
+    AccountStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: "#/components/schemas/AccountStatus" }
+    AccountPasswordReset:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, minLength: 8 }
+
+    # ------------------------------------------------ catalog / gamification
     LearningPath:
       type: object
       required: [id, title, description, courses, courseTitles, duration, completion, learners, accent]
@@ -513,28 +1276,19 @@ components:
         standard: { type: string }
         status: { type: string, enum: [Đang bật, Sẵn sàng, Chưa kết nối] }
         icon: { type: string }
-    LessonCompletionInput:
-      type: object
-      required: [learnerId, courseId, lessonId, score]
-      properties:
-        learnerId: { type: integer }
-        courseId: { type: integer }
-        lessonId: { type: string }
-        score: { type: number, minimum: 0, maximum: 100 }
     LessonCompletionResult:
       type: object
       required: [progress, certificateIssued, pointsAwarded]
       properties:
-        progress: { type: number }
+        progress: { type: number, description: "Course progress of the current student, 0-100" }
         certificateIssued: { type: boolean }
         pointsAwarded: { type: integer }
     XapiEventInput:
       type: object
-      required: [learnerId, verb, objectId, score]
+      required: [verb, objectId, score]
       properties:
-        learnerId: { type: integer }
-        verb: { type: string }
-        objectId: { type: string }
+        verb: { type: string, minLength: 1 }
+        objectId: { type: string, minLength: 1 }
         score: { type: number, minimum: 0, maximum: 100 }
         raw: { type: object, additionalProperties: true }
     XapiEvent:
@@ -548,3 +1302,314 @@ components:
         score: { type: number }
         timestamp: { type: string }
 
+    # ------------------------------------------------ materials
+    MaterialType:
+      type: string
+      enum: [pdf, doc, slide, video, link]
+    Material:
+      type: object
+      required: [id, courseId, lessonId, lessonNumber, title, type, fileUrl, fileName, fileSize, description, uploadedBy, downloadCount, createdAt]
+      properties:
+        id: { type: integer }
+        courseId: { type: integer }
+        lessonId: { type: [integer, "null"], description: "Lesson this material belongs to" }
+        lessonNumber: { type: integer, description: "Deprecated: use lessonId" }
+        title: { type: string }
+        type: { $ref: "#/components/schemas/MaterialType" }
+        fileUrl: { type: string }
+        fileName: { type: [string, "null"] }
+        fileSize: { type: [string, "null"] }
+        description: { type: [string, "null"] }
+        uploadedBy: { type: string }
+        downloadCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+    MaterialInput:
+      type: object
+      required: [title, type, fileUrl]
+      properties:
+        title: { type: string, minLength: 1 }
+        type: { $ref: "#/components/schemas/MaterialType" }
+        fileUrl: { type: string, minLength: 1 }
+        fileName: { type: string }
+        fileSize: { type: string }
+        description: { type: string }
+        lessonId: { type: integer, description: "Lesson of the same course" }
+        lessonNumber: { type: integer, minimum: 1, description: "Deprecated: use lessonId" }
+    DownloadResult:
+      type: object
+      required: [downloadCount]
+      properties:
+        downloadCount: { type: integer }
+
+    # ------------------------------------------------ assignments
+    Assignment:
+      type: object
+      required: [id, courseId, title, description, dueDate, maxPoints, attachmentUrl, attachmentName, createdBy, createdAt]
+      properties:
+        id: { type: integer }
+        courseId: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        dueDate: { type: string, description: "YYYY-MM-DD" }
+        maxPoints: { type: number }
+        attachmentUrl: { type: [string, "null"] }
+        attachmentName: { type: [string, "null"] }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+    AssignmentInput:
+      type: object
+      required: [title, dueDate]
+      properties:
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        dueDate: { type: string, minLength: 1 }
+        maxPoints: { type: number, exclusiveMinimum: 0 }
+        attachmentUrl: { type: string }
+        attachmentName: { type: string }
+
+    # ------------------------------------------------ submissions
+    SubmissionStatus:
+      type: string
+      enum: [submitted, graded]
+    Submission:
+      type: object
+      required: [id, assignmentId, studentId, studentName, studentAvatar, fileUrl, fileName, fileSize, textContent, status, grade, feedback, gradedBy, gradedAt, submittedAt]
+      properties:
+        id: { type: integer }
+        assignmentId: { type: integer }
+        studentId: { type: integer }
+        studentName: { type: string }
+        studentAvatar: { type: string }
+        fileUrl: { type: [string, "null"] }
+        fileName: { type: [string, "null"] }
+        fileSize: { type: [string, "null"] }
+        textContent: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/SubmissionStatus" }
+        grade: { type: [number, "null"] }
+        feedback: { type: [string, "null"] }
+        gradedBy: { type: [string, "null"] }
+        gradedAt: { type: [string, "null"], format: date-time }
+        submittedAt: { type: string, format: date-time }
+    SubmissionInput:
+      type: object
+      properties:
+        fileUrl: { type: string }
+        fileName: { type: string }
+        fileSize: { type: string }
+        textContent: { type: string }
+    GradeInput:
+      type: object
+      required: [grade]
+      properties:
+        grade: { type: number, minimum: 0 }
+        feedback: { type: string }
+
+    # ------------------------------------------------ course content
+    LessonType:
+      type: string
+      enum: [video, text, document, quiz]
+    LessonSummary:
+      type: object
+      required: [id, sectionId, title, type, position, durationMinutes, isPublished, completed]
+      properties:
+        id: { type: integer }
+        sectionId: { type: integer }
+        title: { type: string }
+        type: { $ref: "#/components/schemas/LessonType" }
+        position: { type: integer }
+        durationMinutes: { type: integer }
+        isPublished: { type: boolean }
+        completed: { type: boolean, description: "Completed by the current user" }
+    CourseSection:
+      type: object
+      required: [id, courseId, title, position, lessons]
+      properties:
+        id: { type: integer }
+        courseId: { type: integer }
+        title: { type: string }
+        position: { type: integer }
+        lessons:
+          type: array
+          items: { $ref: "#/components/schemas/LessonSummary" }
+    OutlineProgress:
+      type: object
+      required: [completed, total, percent]
+      properties:
+        completed: { type: integer }
+        total: { type: integer, description: "Published lessons" }
+        percent: { type: integer }
+    CourseOutline:
+      type: object
+      required: [courseId, canEdit, enrolled, sections, progress]
+      properties:
+        courseId: { type: integer }
+        canEdit: { type: boolean, description: "Current user is the instructor or an admin" }
+        enrolled: { type: boolean, description: "Current user is enrolled as a student" }
+        sections:
+          type: array
+          items: { $ref: "#/components/schemas/CourseSection" }
+        progress: { $ref: "#/components/schemas/OutlineProgress" }
+    QuizQuestion:
+      type: object
+      required: [id, prompt, options, correctIndex, explanation]
+      properties:
+        id: { type: integer }
+        prompt: { type: string }
+        options:
+          type: array
+          items: { type: string }
+        correctIndex: { type: [integer, "null"], description: "Only sent to the instructor and admins" }
+        explanation: { type: [string, "null"], description: "Only sent to the instructor and admins" }
+    Lesson:
+      type: object
+      required: [id, courseId, sectionId, title, type, position, contentHtml, mediaUrl, durationMinutes, isPublished, passScore, questions, completed, bestScore, updatedAt]
+      properties:
+        id: { type: integer }
+        courseId: { type: integer }
+        sectionId: { type: integer }
+        title: { type: string }
+        type: { $ref: "#/components/schemas/LessonType" }
+        position: { type: integer }
+        contentHtml: { type: string, description: "Sanitized HTML" }
+        mediaUrl: { type: [string, "null"], description: "Video or document URL" }
+        durationMinutes: { type: integer }
+        isPublished: { type: boolean }
+        passScore: { type: integer, description: "Quiz pass mark, 0-100" }
+        questions:
+          type: array
+          items: { $ref: "#/components/schemas/QuizQuestion" }
+        completed: { type: boolean }
+        bestScore: { type: [integer, "null"], description: "Best quiz score of the current user" }
+        updatedAt: { type: string, format: date-time }
+    SectionInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    LessonInput:
+      type: object
+      required: [sectionId, title, type]
+      properties:
+        sectionId: { type: integer }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        type: { $ref: "#/components/schemas/LessonType" }
+    LessonUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        type: { $ref: "#/components/schemas/LessonType" }
+        contentHtml: { type: string, maxLength: 200000 }
+        mediaUrl: { type: [string, "null"] }
+        durationMinutes: { type: integer, minimum: 0, maximum: 1440 }
+        isPublished: { type: boolean }
+        passScore: { type: integer, minimum: 0, maximum: 100 }
+    OutlineOrderInput:
+      type: object
+      required: [sections]
+      properties:
+        sections:
+          type: array
+          items:
+            type: object
+            required: [id, lessonIds]
+            properties:
+              id: { type: integer }
+              lessonIds:
+                type: array
+                items: { type: integer }
+    QuizQuestionInput:
+      type: object
+      required: [prompt, options, correctIndex]
+      properties:
+        prompt: { type: string, minLength: 1, maxLength: 1000 }
+        options:
+          type: array
+          minItems: 2
+          maxItems: 6
+          items: { type: string, minLength: 1, maxLength: 500 }
+        correctIndex: { type: integer, minimum: 0 }
+        explanation: { type: string, maxLength: 1000 }
+    QuizQuestionsInput:
+      type: object
+      required: [questions]
+      properties:
+        questions:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/QuizQuestionInput" }
+    QuizAttemptInput:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          description: Chosen option index for each question, in question order
+          items: { type: integer, minimum: 0 }
+    QuizQuestionResult:
+      type: object
+      required: [questionId, chosenIndex, correctIndex, correct, explanation]
+      properties:
+        questionId: { type: integer }
+        chosenIndex: { type: integer }
+        correctIndex: { type: integer }
+        correct: { type: boolean }
+        explanation: { type: [string, "null"] }
+    QuizAttemptResult:
+      type: object
+      required: [score, passed, passScore, correctCount, total, results, completion]
+      properties:
+        score: { type: integer }
+        passed: { type: boolean }
+        passScore: { type: integer }
+        correctCount: { type: integer }
+        total: { type: integer }
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/QuizQuestionResult" }
+        completion:
+          description: Set when this attempt completed the lesson
+          oneOf:
+            - $ref: "#/components/schemas/LessonCompletionResult"
+            - type: "null"
+
+    # ------------------------------------------------ upload
+    MediaPreset:
+      type: object
+      required: [id, title, type, url, duration, sizeText, format, description]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        type: { $ref: "#/components/schemas/MediaType" }
+        url: { type: string }
+        duration: { type: string }
+        sizeText: { type: string }
+        format: { type: string }
+        description: { type: string }
+    UploadInput:
+      type: object
+      description: Either `presetId`, or `name` + `data` (base64 or data URL)
+      properties:
+        presetId: { type: string }
+        name: { type: string }
+        type: { type: string, description: "MIME type" }
+        data: { type: string }
+    UploadResult:
+      type: object
+      required: [url, fileName, fileType, storage]
+      properties:
+        url: { type: string }
+        fileName: { type: string }
+        originalName: { type: string }
+        fileType: { $ref: "#/components/schemas/MediaType" }
+        fileSize: { type: integer }
+        sizeText: { type: string }
+        presetId: { type: string }
+        storage: { type: string, enum: [cloudflare_r2, local, preset] }
+    UploadedFile:
+      type: object
+      required: [fileName, url, size, createdAt]
+      properties:
+        fileName: { type: string }
+        url: { type: string }
+        size: { type: integer }
+        createdAt: { type: string, format: date-time }

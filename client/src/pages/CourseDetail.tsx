@@ -21,12 +21,14 @@ import {
   Video,
   Flame,
   Award,
+  PenSquare,
 } from 'lucide-react';
 import {
   getListLmsCoursesQueryKey,
-  getListLmsLearnersQueryKey,
+  useGetCourseOutline,
   useListLmsCourses,
-  useListLmsLearners,
+  useListCourseLearners,
+  useListLmsAccounts,
 } from '@/api';
 import type { Course } from '@/api';
 import { Button } from '@/components/ui/button';
@@ -34,7 +36,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { Avatar, accentBackgrounds } from '@/components/common';
+import { Avatar } from '@/components/common';
+import { CourseCover } from '@/components/studio/CourseCover';
+import { formatMinutes, lessonTypeMeta } from '@/components/studio/lessonMeta';
 import { MaterialsTab } from '@/components/learning/MaterialsTab';
 import { AssignmentsTab } from '@/components/learning/AssignmentsTab';
 import { CourseDialog, EnrollDialog } from '@/components/dialogs';
@@ -48,22 +52,12 @@ const courseGradients: Record<string, string> = {
   rose: 'from-rose-900/60 via-pink-900/40 to-slate-900',
 };
 
-const defaultLessonTitles = [
-  'Tổng quan & Giới thiệu học phần',
-  'Lắng nghe và thấu hiểu nguyên tắc cốt lõi',
-  'Đặt câu hỏi gợi mở & Thu thập dữ liệu',
-  'Đề xuất giải pháp & Thực hành ứng dụng',
-  'Thực hành xử lý tình huống thực tế',
-  'Kiểm tra năng lực & Đánh giá tổng kết',
-];
-
 export default function CourseDetail() {
   const [, params] = useRoute('/courses/:id');
   const [, setLocation] = useLocation();
-  const { role } = useRole();
+  const { role, canManageCourse } = useRole();
 
   const coursesQuery = useListLmsCourses({ query: { queryKey: getListLmsCoursesQueryKey() } });
-  const learnersQuery = useListLmsLearners({ query: { queryKey: getListLmsLearnersQueryKey() } });
 
   const [activeTab, setActiveTab] = useState<'syllabus' | 'materials' | 'assignments' | 'learners'>('syllabus');
   const [courseDialog, setCourseDialog] = useState(false);
@@ -71,40 +65,29 @@ export default function CourseDetail() {
 
   const courseId = params?.id ? Number(params.id) : 0;
   const courses = coursesQuery.data ?? [];
-  const learners = learnersQuery.data ?? [];
 
   // Tìm khóa học theo ID
   const course = useMemo(() => {
     return courses.find(c => Number(c.id) === courseId);
   }, [courses, courseId]);
 
-  // Danh sách bài học của môn học này
-  const lessonCount = course?.lessons ?? 5;
-  const lessons = useMemo(() => {
-    return Array.from({ length: lessonCount }, (_, i) => {
-      const lessonNumber = i + 1;
-      const title = defaultLessonTitles[i % defaultLessonTitles.length] ?? `Bài học ${lessonNumber}`;
-      let status: 'completed' | 'in_progress' | 'not_started' = 'not_started';
-      if (i === 0) status = 'completed';
-      else if (i === 1) status = 'in_progress';
+  // Đề cương thật (chương -> bài học) kèm tiến độ của người dùng hiện tại
+  const outlineQuery = useGetCourseOutline(courseId, { query: { enabled: courseId > 0 } });
+  const outline = outlineQuery.data;
+  const outlineLessons = useMemo(() => outline?.sections.flatMap(s => s.lessons) ?? [], [outline]);
+  // Bài "đang học" = bài đã xuất bản đầu tiên chưa hoàn thành
+  const nextLessonId = outlineLessons.find(l => l.isPublished && !l.completed)?.id ?? null;
 
-      return {
-        number: lessonNumber,
-        title,
-        duration: `${15 + i * 5} phút`,
-        status,
-        format: course?.format ?? 'Native',
-      };
-    });
-  }, [lessonCount, course?.format]);
+  // Quyền quản lý khóa học: giảng viên phụ trách hoặc quản trị viên
+  const canManage = canManageCourse(course);
 
-  // Lọc học viên thuộc môn học này
-  const enrolledLearners = useMemo(() => {
-    if (!course) return learners.slice(0, 4);
-    // Ưu tiên học viên có activeCourse khớp hoặc lấy mẫu
-    const matched = learners.filter(l => l.activeCourse === course.title);
-    return matched.length > 0 ? matched : learners.slice(0, Math.min(course.enrolled || 4, learners.length));
-  }, [learners, course]);
+  // Học viên thật sự đã ghi danh (chỉ người quản lý khóa học được xem danh sách)
+  const enrolledQuery = useListCourseLearners(courseId, { query: { enabled: canManage && courseId > 0 } });
+  const enrolledLearners = enrolledQuery.data ?? [];
+
+  // Danh sách học viên để ghi danh thêm
+  const studentsQuery = useListLmsAccounts({ query: { enabled: canManage } });
+  const enrollCandidates = (studentsQuery.data ?? []).filter(l => l.role === 'student');
 
   if (coursesQuery.isLoading) {
     return (
@@ -134,13 +117,14 @@ export default function CourseDetail() {
   }
 
   const gradientClass = courseGradients[course.accent] ?? 'from-slate-800 to-slate-900';
-  const instructorName = (course as any).instructor_name || (course as any).instructorName || 'Cô Bui Ngan';
+  const instructorName = course.instructorName;
 
   return (
     <div className="page-enter pb-12 space-y-6">
       {/* 1. Hero Header Card */}
       <Card className="overflow-hidden border-card-border shadow-sm">
-        <div className={`relative bg-gradient-to-r ${gradientClass} p-6 sm:p-8 text-white`}>
+        <div className={`relative p-6 sm:p-8 text-white ${course.coverImageUrl ? 'bg-slate-900' : `bg-gradient-to-r ${gradientClass}`}`}>
+          {course.coverImageUrl && <CourseCover course={course} overlay className="!absolute inset-0" />}
           <div className="relative z-10">
             {/* Badges strip */}
             <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -170,7 +154,7 @@ export default function CourseDetail() {
 
             {/* Instructor Info */}
             <div className="flex items-center gap-3 mb-6 bg-black/20 backdrop-blur-sm rounded-xl p-3 inline-flex border border-white/10">
-              <Avatar name={instructorName} className="h-8 w-8 text-xs" />
+              <Avatar name={instructorName} size="sm" />
               <div>
                 <p className="text-xs font-semibold text-white">{instructorName}</p>
                 <p className="text-[10px] text-white/70">Giảng viên phụ trách chuyên môn</p>
@@ -185,7 +169,7 @@ export default function CourseDetail() {
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-white/70">Bài học</p>
-                  <p className="text-sm font-bold text-white">{course.lessons} bài giảng</p>
+                  <p className="text-sm font-bold text-white">{course.lessons} bài học</p>
                 </div>
               </div>
 
@@ -237,7 +221,7 @@ export default function CourseDetail() {
           <TabsList className="grid grid-cols-2 sm:grid-cols-4 h-11 w-full sm:max-w-xl bg-muted/60 p-1 rounded-xl">
             <TabsTrigger value="syllabus" className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
               <BookOpen size={14} />
-              Đề cương ({lessons.length})
+              Đề cương ({outlineLessons.filter(l => l.isPublished).length})
             </TabsTrigger>
             <TabsTrigger value="materials" className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
               <FileText size={14} />
@@ -247,15 +231,17 @@ export default function CourseDetail() {
               <GraduationCap size={14} />
               Bài tập & Nộp bài
             </TabsTrigger>
-            <TabsTrigger value="learners" className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-              <Users size={14} />
-              Học viên ({enrolledLearners.length})
-            </TabsTrigger>
+            {canManage && (
+              <TabsTrigger value="learners" className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                <Users size={14} />
+                Học viên ({enrolledLearners.length})
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Nút Vào bàn học trực tuyến & Các nút thao tác cùng hàng với Tabs */}
           <div className="flex items-center gap-2 shrink-0">
-            {role !== 'student' && (
+            {canManage && (
               <>
                 <Button
                   variant="outline"
@@ -274,6 +260,12 @@ export default function CourseDetail() {
                 >
                   <Settings2 size={13} className="mr-1.5" />
                   Sửa môn
+                </Button>
+                <Button asChild size="sm" className="h-11 rounded-xl text-xs font-semibold">
+                  <Link href={`/courses/${course.id}/studio`}>
+                    <PenSquare size={13} className="mr-1.5" />
+                    Soạn nội dung
+                  </Link>
                 </Button>
               </>
             )}
@@ -305,86 +297,122 @@ export default function CourseDetail() {
             </Link>
           </div>
 
-          <div className="grid gap-3">
-            {lessons.map(lesson => (
-              <Card
-                key={lesson.number}
-                className="overflow-hidden border-card-border transition hover:border-primary/50 hover:shadow-sm"
-              >
-                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="flex items-start gap-3.5">
-                    {/* Lesson index badge */}
-                    <div
-                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xs font-mono font-bold ${
-                        lesson.status === 'completed'
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          : lesson.status === 'in_progress'
-                          ? 'bg-primary/10 text-primary'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {lesson.status === 'completed' ? (
-                        <CheckCircle2 size={18} />
-                      ) : lesson.status === 'in_progress' ? (
-                        <Play size={16} fill="currentColor" />
-                      ) : (
-                        String(lesson.number).padStart(2, '0')
-                      )}
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Bài {lesson.number}
-                        </span>
-                        <Badge
-                          variant={
-                            lesson.status === 'completed'
-                              ? 'default'
-                              : lesson.status === 'in_progress'
-                              ? 'secondary'
-                              : 'outline'
-                          }
-                          className="text-[9px] h-4 px-1.5"
-                        >
-                          {lesson.status === 'completed'
-                            ? 'Đã hoàn thành'
-                            : lesson.status === 'in_progress'
-                            ? 'Đang học'
-                            : 'Chưa bắt đầu'}
-                        </Badge>
-                      </div>
-                      <h4 className="font-semibold text-sm text-foreground mt-0.5">
-                        {lesson.title}
-                      </h4>
-                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-3">
-                        <span className="inline-flex items-center gap-1">
-                          <Clock3 size={12} /> {lesson.duration}
-                        </span>
-                        <span>•</span>
-                        <span>Định dạng: {lesson.format}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Action jump into lesson */}
-                  <div className="flex items-center justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-border">
-                    <Link
-                      href={`/learn?courseId=${course.id}&lesson=${lesson.number}`}
-                      className="inline-flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold text-secondary-foreground hover:bg-muted transition-colors"
-                    >
-                      {lesson.status === 'completed'
-                        ? 'Ôn lại bài'
-                        : lesson.status === 'in_progress'
-                        ? 'Tiếp tục học'
-                        : 'Bắt đầu học'}
-                      <ArrowUpRight size={12} />
+          {outlineQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Đang tải đề cương…</p>
+          ) : !outline || outline.sections.length === 0 ? (
+            <Card className="border-dashed border-card-border">
+              <CardContent className="p-8 text-center">
+                <p className="font-display text-base font-bold">Khóa học chưa có nội dung</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {canManage
+                    ? 'Mở studio để thêm chương và bài học: video, bài đọc, tài liệu, bài kiểm tra.'
+                    : 'Giảng viên đang soạn bài học. Hãy quay lại sau nhé.'}
+                </p>
+                {canManage && (
+                  <Button asChild size="sm" className="mt-4">
+                    <Link href={`/courses/${course.id}/studio`}>
+                      <PenSquare size={14} className="mr-1.5" /> Mở studio
                     </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-5">
+              {role === 'student' && outline.progress.total > 0 && (
+                <div className="flex items-center gap-3 rounded-xl border border-card-border bg-card p-3">
+                  <span className="text-xs font-semibold">Tiến độ của bạn</span>
+                  <Progress value={outline.progress.percent} className="h-2 flex-1" />
+                  <span className="text-xs font-bold">
+                    {outline.progress.completed}/{outline.progress.total} bài
+                  </span>
+                </div>
+              )}
+              {outline.sections.map(section => (
+                <div key={section.id} className="space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{section.title}</h4>
+                  {section.lessons.length === 0 && <p className="text-xs text-muted-foreground">Chương chưa có bài học.</p>}
+                  {section.lessons.map(lesson => {
+                    const meta = lessonTypeMeta(lesson.type);
+                    const status = !lesson.isPublished
+                      ? 'draft'
+                      : lesson.completed
+                      ? 'completed'
+                      : lesson.id === nextLessonId && role === 'student'
+                      ? 'next'
+                      : 'not_started';
+                    return (
+                      <Card key={lesson.id} className="overflow-hidden border-card-border transition hover:border-primary/50 hover:shadow-sm">
+                        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-start gap-3.5">
+                            <div
+                              className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+                                status === 'completed'
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                  : status === 'next'
+                                  ? 'bg-primary/10 text-primary'
+                                  : 'bg-muted text-muted-foreground'
+                              }`}
+                            >
+                              {status === 'completed' ? <CheckCircle2 size={18} /> : <meta.icon size={17} />}
+                            </div>
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{meta.label}</span>
+                                {status === 'draft' && (
+                                  <Badge variant="outline" className="h-4 px-1.5 text-[9px]">
+                                    Nháp · học viên chưa thấy
+                                  </Badge>
+                                )}
+                                {status === 'completed' && <Badge className="h-4 px-1.5 text-[9px]">Đã hoàn thành</Badge>}
+                                {status === 'next' && (
+                                  <Badge variant="secondary" className="h-4 px-1.5 text-[9px]">
+                                    Học tiếp
+                                  </Badge>
+                                )}
+                              </div>
+                              <h5 className="mt-0.5 text-sm font-semibold text-foreground">{lesson.title}</h5>
+                              {lesson.durationMinutes > 0 && (
+                                <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Clock3 size={12} /> {formatMinutes(lesson.durationMinutes)}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-end gap-2 border-t border-border pt-2 sm:border-t-0 sm:pt-0">
+                            {status === 'draft' ? (
+                              canManage && (
+                                <Link
+                                  href={`/courses/${course.id}/studio?lesson=${lesson.id}`}
+                                  className="inline-flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold text-secondary-foreground transition-colors hover:bg-muted"
+                                >
+                                  Soạn tiếp <PenSquare size={12} />
+                                </Link>
+                              )
+                            ) : (
+                              <Link
+                                href={`/learn?courseId=${course.id}&lesson=${lesson.id}`}
+                                className="inline-flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold text-secondary-foreground transition-colors hover:bg-muted"
+                              >
+                                {role !== 'student'
+                                  ? 'Xem bài'
+                                  : status === 'completed'
+                                  ? 'Ôn lại bài'
+                                  : status === 'next'
+                                  ? 'Tiếp tục học'
+                                  : 'Bắt đầu học'}
+                                <ArrowUpRight size={12} />
+                              </Link>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         {/* TAB 2: Tài liệu học tập */}
@@ -408,7 +436,7 @@ export default function CourseDetail() {
                 Tổng cộng {enrolledLearners.length} học viên tham gia lớp học phần này.
               </p>
             </div>
-            {role !== 'student' && (
+            {canManage && (
               <Button size="sm" onClick={() => setEnrollDialog(true)}>
                 <Plus size={14} className="mr-1.5" />
                 Ghi danh học viên mới
@@ -434,7 +462,7 @@ export default function CourseDetail() {
                     <tr key={learner.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <Avatar name={learner.name} className="h-8 w-8 text-xs" />
+                          <Avatar name={learner.name} size="sm" />
                           <div>
                             <p className="font-semibold text-foreground">{learner.name}</p>
                             <p className="text-[10px] text-muted-foreground">{learner.email}</p>
@@ -480,7 +508,7 @@ export default function CourseDetail() {
       <EnrollDialog
         open={enrollDialog}
         onClose={() => setEnrollDialog(false)}
-        learners={learners}
+        learners={enrollCandidates}
         courses={[course]}
       />
     </div>

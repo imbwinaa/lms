@@ -1,19 +1,51 @@
+# Render Blueprint — một web service phục vụ cả API (/api) lẫn giao diện React (client/dist).
+# Hướng dẫn chi tiết: README.md → "Deploy to Render".
 services:
   - type: web
     name: nep-hoc-lms-backend
     runtime: node
-    plan: free
+    # Cần gói trả phí (Starter trở lên) để gắn ổ đĩa lưu SQLite + file tải lên.
+    # Gói Free không có ổ đĩa bền vững: dữ liệu sẽ mất sau mỗi lần deploy/khởi động lại.
+    plan: starter
     region: singapore
-    buildCommand: pnpm install --frozen-lockfile
+    # NODE_ENV=development chỉ cho bước cài đặt để có devDependencies (vite, typescript) khi build.
+    buildCommand: >-
+      npm install -g corepack@latest &&
+      corepack enable &&
+      NODE_ENV=development pnpm install --frozen-lockfile &&
+      pnpm --filter client build
     startCommand: pnpm --filter server start
     healthCheckPath: /api/healthz
+    disk:
+      name: lms-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: "22"
       - key: PORT
         value: 10000
-      - key: DATABASE_URL
+      # Cơ sở dữ liệu SQLite và file tải lên nằm trên ổ đĩa bền vững
+      - key: DATABASE_PATH
+        value: /var/data/lms.db
+      - key: UPLOADS_DIR
+        value: /var/data/uploads
+      # Lần khởi động đầu tiên (DB trống) chỉ tạo 1 quản trị viên — không có dữ liệu mẫu.
+      # Render sẽ hỏi 2 giá trị này khi tạo Blueprint.
+      - key: SEED_ADMIN_EMAIL
         sync: false
+      # Mật khẩu ban đầu của quản trị viên đầu tiên (≥ 8 ký tự)
+      - key: SEED_DEFAULT_PASSWORD
+        sync: false
+      - key: SEED_ADMIN_NAME
+        value: Quản trị viên
+      # Chỉ cần khi frontend chạy ở domain khác (VD: Vercel). Phân tách nhiều origin bằng dấu phẩy.
+      - key: CORS_ORIGIN
+        sync: false
+      # KHÔNG đặt ENABLE_DEMO_LOGIN ở production.
+      # Cloudflare R2 (tùy chọn). Bỏ trống -> file tải lên lưu trên ổ đĩa /var/data/uploads.
       - key: R2_ACCOUNT_ID
         sync: false
       - key: R2_ACCESS_KEY_ID

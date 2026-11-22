@@ -28,7 +28,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { accentBackgrounds } from '@/components/common';
 import { useRole } from '@/contexts/RoleContext';
 
 export function StudentDashboardView() {
@@ -186,8 +185,7 @@ export function StudentDashboardView() {
                 </Link>
               </Card>
             ) : (
-              courses.map((course, idx) => {
-                const bgPattern = accentBackgrounds[idx % accentBackgrounds.length];
+              courses.map(course => {
                 const courseCode = `HP-${String(course.id).padStart(4, '0')}`;
                 const enrollDate = `15-05-2026`;
 
@@ -199,19 +197,16 @@ export function StudentDashboardView() {
                     <div className="flex flex-col sm:flex-row items-stretch">
                       {/* Course Thumbnail Box */}
                       <div className="relative sm:w-44 md:w-52 h-36 sm:h-auto shrink-0 overflow-hidden bg-muted flex items-center justify-center">
-                        {course.mediaUrl && (course as any).mediaType === 'image' ? (
+                        {course.coverImageUrl ? (
                           <img
-                            src={course.mediaUrl}
+                            src={course.coverImageUrl}
                             alt={course.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                         ) : (
                           <div
                             className="w-full h-full flex flex-col items-center justify-center p-3 text-center transition-transform duration-300 group-hover:scale-105"
-                            style={{
-                              background: bgPattern?.gradient || 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                              color: bgPattern?.textColor || '#ffffff',
-                            }}
+                            style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#ffffff' }}
                           >
                             <div className="grid h-10 w-10 place-items-center rounded-xl bg-black/10 backdrop-blur-xs mb-1.5 shadow-2xs">
                               <GraduationCap size={22} />

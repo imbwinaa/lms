@@ -1,98 +1,122 @@
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useState } from 'react';
-import { X, UploadCloud, FileText, FileVideo, Presentation, Link as LinkIcon, FileCheck } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Field, Notice } from '@/components/common';
-import { lmsStorage, type CourseMaterial } from '@/services/lmsStorage';
-import { useRole } from '@/contexts/RoleContext';
+import {
+  formatFileSize,
+  getErrorMessage,
+  invalidateLms,
+  uploadBrowserFile,
+  useCreateCourseMaterial,
+  type Material,
+  type MaterialType,
+} from '@/api';
 
 export interface CreateMaterialDialogProps {
   open: boolean;
   courseId: number;
   onClose: () => void;
-  onCreated: (material: CourseMaterial) => void;
+  onCreated?: (material: Material) => void;
 }
 
 export function CreateMaterialDialog({ open, courseId, onClose, onCreated }: CreateMaterialDialogProps) {
-  const { user } = useRole();
+  const queryClient = useQueryClient();
+  const createMaterial = useCreateCourseMaterial();
   const [title, setTitle] = useState('');
-  const [type, setType] = useState<CourseMaterial['type']>('pdf');
-  const [fileUrl, setFileUrl] = useState('');
-  const [fileName, setFileName] = useState('');
-  const [fileSize, setFileSize] = useState('1.5 MB');
+  const [type, setType] = useState<MaterialType>('pdf');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [description, setDescription] = useState('');
   const [lessonNumber, setLessonNumber] = useState(1);
+  const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState(false);
 
   if (!open) return null;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFileName(file.name);
-      setFileUrl(URL.createObjectURL(file));
-      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
-      setFileSize(`${sizeMb} MB`);
-      if (!title) {
-        setTitle(file.name.replace(/\.[^/.]+$/, ''));
-      }
-      if (file.type === 'application/pdf') setType('pdf');
-      else if (file.type.includes('word') || file.type.includes('document')) setType('doc');
-      else if (file.type.includes('presentation') || file.name.endsWith('.pptx') || file.name.endsWith('.ppt'))
-        setType('slide');
-      else if (file.type.startsWith('video/')) setType('video');
-    }
+  const isLink = type === 'video' || type === 'link';
+
+  const reset = () => {
+    setTitle('');
+    setDescription('');
+    setLinkUrl('');
+    setFile(null);
+    setFeedback('');
+    setError(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0];
+    if (!picked) return;
+    setFile(picked);
+    if (!title) setTitle(picked.name.replace(/\.[^/.]+$/, ''));
+    if (picked.type === 'application/pdf') setType('pdf');
+    else if (picked.type.includes('presentation') || /\.pptx?$/i.test(picked.name)) setType('slide');
+    else if (picked.type.includes('word') || picked.type.includes('document')) setType('doc');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(false);
     if (!title.trim()) {
       setError(true);
       setFeedback('Vui lòng nhập tên tài liệu bài giảng.');
       return;
     }
+    if (isLink ? !linkUrl.trim() : !file) {
+      setError(true);
+      setFeedback(isLink ? 'Vui lòng nhập đường link tài liệu.' : 'Vui lòng chọn tệp tài liệu.');
+      return;
+    }
 
-    const created = lmsStorage.addMaterial({
-      courseId,
-      lessonNumber,
-      title: title.trim(),
-      type,
-      fileUrl: fileUrl || '/uploads/sample-document.pdf',
-      fileName: fileName || `${title.replace(/\s+/g, '_')}.${type === 'pdf' ? 'pdf' : type === 'slide' ? 'pptx' : 'docx'}`,
-      fileSize: fileSize || '1.0 MB',
-      description: description.trim() || 'Tài liệu hướng dẫn học phần.',
-      uploadedBy: user.name || 'Cô Bui Ngan',
-    });
-
-    setFeedback('Đã đăng tài liệu thành công!');
-    setTimeout(() => {
-      onCreated(created);
+    setBusy(true);
+    try {
+      let fileUrl = linkUrl.trim();
+      let fileName: string | undefined;
+      let fileSize: string | undefined;
+      if (!isLink && file) {
+        setFeedback('Đang tải tệp lên máy chủ...');
+        const uploaded = await uploadBrowserFile(file);
+        fileUrl = uploaded.url;
+        fileName = file.name;
+        fileSize = formatFileSize(file.size);
+      }
+      const created = await createMaterial.mutateAsync({
+        id: courseId,
+        data: {
+          title: title.trim(),
+          type,
+          fileUrl,
+          fileName,
+          fileSize,
+          lessonNumber,
+          description: description.trim() || undefined,
+        },
+      });
+      await invalidateLms(queryClient);
+      onCreated?.(created);
+      reset();
       onClose();
-      // Reset
-      setTitle('');
-      setDescription('');
-      setFileUrl('');
-      setFileName('');
-      setFeedback('');
-    }, 500);
+    } catch (err) {
+      setError(true);
+      setFeedback(err instanceof Error && !('status' in err) ? err.message : getErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in fade-in-0 zoom-in-95">
-        <div className="flex items-center justify-between border-b border-border pb-4">
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent aria-describedby={undefined} className="block w-[calc(100%-2rem)] max-w-lg rounded-2xl bg-card shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border pb-4 pr-8">
           <div>
-            <h3 className="font-display text-lg font-bold">Đăng tài liệu bài giảng mới</h3>
+            <DialogTitle className="font-display text-lg font-bold leading-tight tracking-normal">Đăng tài liệu bài giảng mới</DialogTitle>
             <p className="text-xs text-muted-foreground">Chia sẻ Slide, tài liệu PDF, tài liệu đọc hoặc link video cho học viên.</p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <X size={18} />
-          </button>
         </div>
 
         {feedback && (
@@ -115,7 +139,7 @@ export function CreateMaterialDialog({ open, courseId, onClose, onCreated }: Cre
             <Field label="Định dạng tài liệu">
               <select
                 value={type}
-                onChange={e => setType(e.target.value as CourseMaterial['type'])}
+                onChange={e => setType(e.target.value as MaterialType)}
                 className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm font-medium"
               >
                 <option value="pdf">📄 File PDF</option>
@@ -140,12 +164,11 @@ export function CreateMaterialDialog({ open, courseId, onClose, onCreated }: Cre
             </Field>
           </div>
 
-          {/* Chọn tệp tải lên hoặc dán URL */}
-          <Field label={type === 'video' || type === 'link' ? 'Đường link tài liệu (URL)' : 'Tải tệp từ máy tính'}>
-            {type === 'video' || type === 'link' ? (
+          <Field label={isLink ? 'Đường link tài liệu (URL)' : 'Tải tệp từ máy tính'}>
+            {isLink ? (
               <Input
-                value={fileUrl}
-                onChange={e => setFileUrl(e.target.value)}
+                value={linkUrl}
+                onChange={e => setLinkUrl(e.target.value)}
                 placeholder="https://youtube.com/watch?v=... hoặc https://drive.google.com/..."
               />
             ) : (
@@ -154,13 +177,14 @@ export function CreateMaterialDialog({ open, courseId, onClose, onCreated }: Cre
                   type="file"
                   id="material-file-input"
                   onChange={handleFileChange}
+                  accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip"
                   className="absolute inset-0 cursor-pointer opacity-0"
                 />
                 <UploadCloud className="mb-2 h-8 w-8 text-primary" />
                 <p className="text-xs font-semibold text-foreground">
-                  {fileName ? `Đã chọn: ${fileName}` : 'Bấm vào đây để chọn tệp hoặc kéo thả'}
+                  {file ? `Đã chọn: ${file.name} (${formatFileSize(file.size)})` : 'Bấm vào đây để chọn tệp hoặc kéo thả'}
                 </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">Hỗ trợ PDF, PPTX, DOCX, ZIP (Tối đa 50MB)</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">Hỗ trợ PDF, PPTX, DOCX, ZIP (Tối đa 25MB)</p>
               </div>
             )}
           </Field>
@@ -175,13 +199,15 @@ export function CreateMaterialDialog({ open, courseId, onClose, onCreated }: Cre
           </Field>
 
           <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
               Hủy
             </Button>
-            <Button type="submit">Đăng tài liệu</Button>
+            <Button type="submit" disabled={busy}>
+              {busy ? 'Đang đăng...' : 'Đăng tài liệu'}
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

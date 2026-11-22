@@ -5,3 +5,7 @@ export * from './CreateMaterialDialog';
 export * from './CreateAssignmentDialog';
 export * from './SubmitAssignmentDialog';
 export * from './GradeSubmissionDialog';
+export * from './CreateAccountDialog';
+export * from './EditAccountDialog';
+export * from './ResetPasswordDialog';
+export * from './ConfirmDialog';

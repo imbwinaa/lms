@@ -1,15 +1,44 @@
-import { Router, type Request, type Response } from "express";
+import { Router } from "express";
 import fs from "fs";
 import path from "path";
 import { isR2Configured, uploadFileToR2, getR2ObjectStream } from "../lib/r2";
+import { badRequest, notFound, parseOr400 } from "../lib/http";
+import { authenticate, requireRole } from "../middlewares/auth";
+import { UploadFileBody } from "../schemas";
 
 const uploadRouter = Router();
-const uploadsDir = path.resolve(process.cwd(), "uploads");
+export const uploadsDir = path.resolve(process.env.UPLOADS_DIR || path.join(process.cwd(), "uploads"));
 
-// Đảm bảo thư mục uploads tồn tại
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
+
+/** Danh sách định dạng tệp được phép tải lên (theo phần mở rộng) */
+const ALLOWED_EXTENSIONS: Record<string, "video" | "audio" | "document" | "scorm"> = {
+  ".mp4": "video",
+  ".webm": "video",
+  ".mov": "video",
+  ".mp3": "audio",
+  ".wav": "audio",
+  ".m4a": "audio",
+  ".ogg": "audio",
+  ".pdf": "document",
+  ".doc": "document",
+  ".docx": "document",
+  ".ppt": "document",
+  ".pptx": "document",
+  ".xls": "document",
+  ".xlsx": "document",
+  ".txt": "document",
+  ".png": "document",
+  ".jpg": "document",
+  ".jpeg": "document",
+  ".webp": "document",
+  ".gif": "document",
+  ".zip": "scorm",
+};
 
 export interface PresetMedia {
   id: string;
@@ -75,149 +104,107 @@ export const PRESET_MEDIA_LIBRARY: PresetMedia[] = [
   },
 ];
 
-// 1. DANH SÁCH HỌC LIỆU MẪU (PRESET MEDIA LIBRARY)
-uploadRouter.get("/presets", (_req: Request, res: Response) => {
-  return res.json({
-    success: true,
-    presets: PRESET_MEDIA_LIBRARY,
+function formatSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+// Proxy stream từ R2 (công khai: URL được nhúng trực tiếp vào <video>/<a>)
+uploadRouter.get("/r2/:key", async (req, res) => {
+  try {
+    const object = await getR2ObjectStream(String(req.params.key));
+    if (object.ContentType) res.setHeader("Content-Type", object.ContentType);
+    if (object.ContentLength) res.setHeader("Content-Length", object.ContentLength);
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    (object.Body as NodeJS.ReadableStream | undefined)?.pipe(res);
+  } catch {
+    res.status(404).json({ message: "Không tìm thấy file trên Cloudflare R2." });
+  }
+});
+
+// Các endpoint còn lại yêu cầu đăng nhập
+uploadRouter.use(authenticate);
+
+uploadRouter.get("/presets", (_req, res) => {
+  res.json(PRESET_MEDIA_LIBRARY);
+});
+
+uploadRouter.post("/", async (req, res) => {
+  const { presetId, name, type, data } = parseOr400(UploadFileBody, req.body);
+
+  if (presetId) {
+    const preset = PRESET_MEDIA_LIBRARY.find((p) => p.id === presetId);
+    if (!preset) throw notFound("Không tìm thấy học liệu mẫu yêu cầu.");
+    res.status(201).json({
+      url: preset.url,
+      fileName: preset.title,
+      fileType: preset.type,
+      sizeText: preset.sizeText,
+      presetId: preset.id,
+      storage: "preset",
+    });
+    return;
+  }
+
+  if (!name || !data) throw badRequest("Vui lòng cung cấp dữ liệu file hoặc chọn học liệu mẫu.");
+
+  const cleanName = path.basename(name).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const extension = path.extname(cleanName).toLowerCase();
+  const fileType = ALLOWED_EXTENSIONS[extension];
+  if (!fileType) {
+    throw badRequest(`Định dạng tệp "${extension || "không rõ"}" không được hỗ trợ.`);
+  }
+
+  const base64Data = data.includes("base64,") ? data.split("base64,")[1]! : data;
+  const buffer = Buffer.from(base64Data, "base64");
+  if (buffer.length === 0) throw badRequest("Tệp rỗng hoặc dữ liệu không hợp lệ.");
+  if (buffer.length > MAX_UPLOAD_BYTES) {
+    res.status(413).json({ message: `Tệp vượt quá giới hạn ${formatSize(MAX_UPLOAD_BYTES)}.` });
+    return;
+  }
+
+  const uniqueFileName = `${Date.now()}-${cleanName}`;
+  let url = "";
+  let storage: "cloudflare_r2" | "local" = "local";
+
+  if (isR2Configured) {
+    try {
+      url = (await uploadFileToR2(cleanName, buffer, type || "application/octet-stream")).url;
+      storage = "cloudflare_r2";
+    } catch (error) {
+      req.log.warn({ err: error }, "[R2] Lỗi tải lên Cloudflare R2, dùng lưu trữ cục bộ");
+    }
+  }
+  if (storage === "local") {
+    await fs.promises.writeFile(path.join(uploadsDir, uniqueFileName), buffer);
+    url = `/uploads/${uniqueFileName}`;
+  }
+
+  res.status(201).json({
+    url,
+    fileName: uniqueFileName,
+    originalName: name,
+    fileType,
+    fileSize: buffer.length,
+    sizeText: formatSize(buffer.length),
+    storage,
   });
 });
 
-// 2. TẢI FILE LÊN MÁY CHỦ LOCALHOST HOẶC CHỌN PRESET
-uploadRouter.post("/", async (req: Request, res: Response) => {
-  try {
-    const { name, type, size, data, presetId } = req.body;
-
-    // Nếu người dùng chọn từ Kho học liệu mẫu
-    if (presetId) {
-      const preset = PRESET_MEDIA_LIBRARY.find(p => p.id === presetId);
-      if (!preset) {
-        return res.status(404).json({ success: false, message: "Không tìm thấy học liệu mẫu yêu cầu." });
-      }
-      return res.json({
-        success: true,
-        message: `Đã liên kết học liệu mẫu: ${preset.title}`,
-        url: preset.url,
-        fileName: preset.title,
-        fileType: preset.type,
-        sizeText: preset.sizeText,
-        presetId: preset.id,
-      });
-    }
-
-    // Nếu người dùng tải file lên từ máy tính
-    if (!name || !data) {
-      return res.status(400).json({
-        success: false,
-        message: "Vui lòng cung cấp dữ liệu file hoặc chọn học liệu mẫu.",
-      });
-    }
-
-    // Làm sạch tên file và thêm timestamp để tránh trùng lặp
-    const cleanName = path.basename(name).replace(/[^a-zA-Z0-9._-]/g, "_");
-    const uniqueFileName = `${Date.now()}-${cleanName}`;
-    const targetFilePath = path.join(uploadsDir, uniqueFileName);
-
-    // Chuyển đổi base64 data URL thành Buffer
-    const base64Data = data.includes("base64,") ? data.split("base64,")[1] : data;
-    const buffer = Buffer.from(base64Data, "base64");
-
-    // Ghi file cục bộ dự phòng
-    await fs.promises.writeFile(targetFilePath, buffer);
-
-    let finalUrl = `/uploads/${uniqueFileName}`;
-    let isCloudflare = false;
-
-    // Tự động tải lên Cloudflare R2 nếu đã cấu hình
-    if (isR2Configured) {
+uploadRouter.get("/recent", requireRole("admin"), async (_req, res) => {
+  const files = await fs.promises.readdir(uploadsDir);
+  const details = await Promise.all(
+    files.map(async (file) => {
       try {
-        const r2Result = await uploadFileToR2(cleanName, buffer, type || "application/octet-stream");
-        finalUrl = r2Result.url;
-        isCloudflare = true;
-      } catch (r2Err) {
-        console.warn("[R2] Lỗi tải lên Cloudflare R2, dùng fallback cục bộ:", r2Err);
+        const stats = await fs.promises.stat(path.join(uploadsDir, file));
+        if (!stats.isFile()) return null;
+        return { fileName: file, url: `/uploads/${file}`, size: stats.size, createdAt: stats.birthtime.toISOString() };
+      } catch {
+        return null;
       }
-    }
-
-    const detectedType = type?.startsWith("video/")
-      ? "video"
-      : type?.startsWith("audio/")
-      ? "audio"
-      : type === "application/pdf"
-      ? "document"
-      : name.endsWith(".zip")
-      ? "scorm"
-      : "video";
-
-    return res.status(201).json({
-      success: true,
-      message: isCloudflare
-        ? `Đã lưu file "${cleanName}" thành công lên Cloudflare R2.`
-        : `Đã lưu file "${cleanName}" thành công vào máy chủ.`,
-      url: finalUrl,
-      fileName: uniqueFileName,
-      originalName: name,
-      fileType: detectedType,
-      fileSize: buffer.length,
-      storage: isCloudflare ? "cloudflare_r2" : "local",
-      uploadedAt: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("Lỗi tải file lên:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Chưa thể lưu file lên máy chủ. Vui lòng thử lại.",
-    });
-  }
-});
-
-// 3. DANH SÁCH CÁC FILE ĐÃ TẢI LÊN GẦN ĐÂY TRÊN LOCALHOST
-uploadRouter.get("/recent", async (_req: Request, res: Response) => {
-  try {
-    const files = await fs.promises.readdir(uploadsDir);
-    const details = await Promise.all(
-      files.map(async file => {
-        try {
-          const stats = await fs.promises.stat(path.join(uploadsDir, file));
-          return {
-            fileName: file,
-            url: `/uploads/${file}`,
-            size: stats.size,
-            createdAt: stats.birthtime,
-          };
-        } catch {
-          return null;
-        }
-      })
-    );
-
-    return res.json({
-      success: true,
-      files: details.filter(Boolean),
-    });
-  } catch (error) {
-    console.error("Lỗi liệt kê file:", error);
-    return res.status(500).json({ success: false, message: "Lỗi đọc danh sách file." });
-  }
-});
-
-// 4. STREAMING PROXY TỪ R2 CHO TRÌNH DUYỆT (KHI CẦN)
-uploadRouter.get("/r2/:key", async (req: Request, res: Response) => {
-  try {
-    const key = String(req.params.key);
-    const object = await getR2ObjectStream(key);
-    if (object.ContentType) {
-      res.setHeader("Content-Type", object.ContentType);
-    }
-    if (object.ContentLength) {
-      res.setHeader("Content-Length", object.ContentLength);
-    }
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    (object.Body as any)?.pipe(res);
-  } catch (error) {
-    console.error("Lỗi stream file từ R2:", error);
-    res.status(404).send("Không tìm thấy file trên Cloudflare R2.");
-  }
+    }),
+  );
+  res.json(details.filter(Boolean));
 });
 
 export default uploadRouter;

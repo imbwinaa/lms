@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, count, eq, isNull } from "drizzle-orm";
 import {
   db,
   lmsActivitiesTable,
@@ -14,8 +14,65 @@ import {
   lmsXapiEventsTable,
 } from "../db";
 import { hashPassword } from "./auth";
+import { seedDemoOutlines } from "./demo-outline-seed";
 
-const defaultPasswordHash = hashPassword("123456");
+/**
+ * Chế độ khởi tạo dữ liệu:
+ *  - Dữ liệu mẫu (SEED_DEMO_DATA=true — mặc định khi phát triển): khóa học, học viên,
+ *    tài liệu, bài tập, chứng chỉ... minh họa; được bổ sung lại nếu thiếu.
+ *  - Chỉ admin (SEED_DEMO_DATA không đặt/false — mặc định ở production): khi cơ sở dữ liệu
+ *    chưa có tài khoản nào, chỉ tạo đúng 1 quản trị viên từ SEED_ADMIN_EMAIL + SEED_DEFAULT_PASSWORD.
+ *    Không bao giờ chèn dữ liệu mẫu vào cơ sở dữ liệu thật.
+ */
+export function isDemoSeedEnabled(): boolean {
+  const flag = process.env.SEED_DEMO_DATA?.trim().toLowerCase();
+  if (flag) return flag === "true" || flag === "1";
+  return process.env.NODE_ENV !== "production";
+}
+
+// Mật khẩu ban đầu của các tài khoản được khởi tạo. Bắt buộc đặt SEED_DEFAULT_PASSWORD ở production.
+const seedPassword = process.env.SEED_DEFAULT_PASSWORD || "123456";
+const defaultPasswordHash = hashPassword(seedPassword);
+
+/** Chế độ chỉ admin: tạo quản trị viên đầu tiên nếu chưa có tài khoản nào */
+async function seedFirstAdmin(): Promise<void> {
+  const [accounts] = await db.select({ value: count() }).from(lmsLearnersTable);
+  if (Number(accounts?.value ?? 0) > 0) return;
+
+  const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase() ?? "";
+  const password = process.env.SEED_DEFAULT_PASSWORD ?? "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error(
+      "Cơ sở dữ liệu chưa có tài khoản nào: hãy đặt SEED_ADMIN_EMAIL (email quản trị viên đầu tiên) " +
+        "hoặc SEED_DEMO_DATA=true để dùng dữ liệu mẫu.",
+    );
+  }
+  if (password.length < 8) {
+    throw new Error("Hãy đặt SEED_DEFAULT_PASSWORD (≥ 8 ký tự) làm mật khẩu ban đầu cho quản trị viên đầu tiên.");
+  }
+
+  await db.insert(lmsLearnersTable).values({
+    name: process.env.SEED_ADMIN_NAME?.trim() || "Quản trị viên",
+    email,
+    passwordHash: hashPassword(password),
+    role: "admin",
+    team: "Ban Giám Hiệu",
+    points: 0,
+    streak: 0,
+    progress: 0,
+    activeCourse: "Chưa ghi danh",
+    lastActive: "Chưa hoạt động",
+  });
+}
+
+function assertSafeSeedPassword() {
+  if (process.env.NODE_ENV === "production" && !process.env.SEED_DEFAULT_PASSWORD) {
+    throw new Error(
+      "Cơ sở dữ liệu trống: hãy đặt biến môi trường SEED_DEFAULT_PASSWORD (≥ 8 ký tự) trước khi khởi tạo dữ liệu ở production, " +
+        "nếu không tài khoản admin mẫu sẽ dùng mật khẩu công khai 123456.",
+    );
+  }
+}
 
 const courseSeed = [
   {
@@ -68,7 +125,7 @@ const courseSeed = [
 const learnerSeed = [
   {
     name: "Cô Ngân Bùi",
-    email: "ngan.bui@nova.vn",
+    email: "ngan.bui@boom.vn",
     passwordHash: defaultPasswordHash,
     role: "admin",
     team: "Ban Giám Hiệu",
@@ -80,7 +137,7 @@ const learnerSeed = [
   },
   {
     name: "Cô Bui Ngan",
-    email: "bui.ngan@nova.vn",
+    email: "bui.ngan@boom.vn",
     passwordHash: defaultPasswordHash,
     role: "lecturer",
     team: "Tổ Sư Phạm & Đào Tạo",
@@ -92,7 +149,7 @@ const learnerSeed = [
   },
   {
     name: "Ngann",
-    email: "ngann@nova.vn",
+    email: "ngann@boom.vn",
     passwordHash: defaultPasswordHash,
     role: "student",
     team: "Lớp 10A",
@@ -104,7 +161,7 @@ const learnerSeed = [
   },
   {
     name: "Bui",
-    email: "bui@nova.vn",
+    email: "bui@boom.vn",
     passwordHash: defaultPasswordHash,
     role: "student",
     team: "Lớp 10A",
@@ -116,7 +173,7 @@ const learnerSeed = [
   },
   {
     name: "L",
-    email: "l@nova.vn",
+    email: "l@boom.vn",
     passwordHash: defaultPasswordHash,
     role: "student",
     team: "Lớp 10B",
@@ -365,6 +422,7 @@ async function seedLmsData(): Promise<void> {
     return;
   }
 
+  assertSafeSeedPassword();
   await db.insert(lmsCoursesTable).values(courseSeed);
   await db.insert(lmsLearnersTable).values(learnerSeed);
   await db.insert(lmsLearningPathsTable).values([
@@ -527,9 +585,40 @@ async function seedLmsData(): Promise<void> {
   await ensureMaterialsAndAssignments(courses, learners);
 }
 
+/**
+ * Gán giảng viên phụ trách (instructor_id) cho các khóa học chưa có chủ sở hữu:
+ * ưu tiên giảng viên trùng tên instructor_name, nếu không thì giảng viên đầu tiên.
+ */
+async function backfillCourseInstructors(): Promise<void> {
+  const orphanCourses = await db
+    .select({ id: lmsCoursesTable.id, instructorName: lmsCoursesTable.instructorName })
+    .from(lmsCoursesTable)
+    .where(isNull(lmsCoursesTable.instructorId));
+  if (orphanCourses.length === 0) return;
+
+  const lecturers = await db
+    .select({ id: lmsLearnersTable.id, name: lmsLearnersTable.name })
+    .from(lmsLearnersTable)
+    .where(eq(lmsLearnersTable.role, "lecturer"))
+    .orderBy(asc(lmsLearnersTable.id));
+  const fallback = lecturers[0];
+  if (!fallback) return;
+
+  for (const course of orphanCourses) {
+    const owner = lecturers.find((l) => l.name === course.instructorName) ?? fallback;
+    await db
+      .update(lmsCoursesTable)
+      .set({ instructorId: owner.id, instructorName: owner.name })
+      .where(eq(lmsCoursesTable.id, course.id));
+  }
+}
+
 export function ensureLmsSeeded(): Promise<void> {
   if (!seedPromise) {
-    seedPromise = seedLmsData().catch((error: unknown) => {
+    // Dữ liệu mẫu (và gán giảng viên cho khóa mẫu) chỉ chạy ở chế độ demo;
+    // ở chế độ thật, khóa học không có giảng viên là do admin chủ động gỡ — không tự gán lại.
+    const run = isDemoSeedEnabled() ? seedLmsData().then(backfillCourseInstructors).then(seedDemoOutlines) : seedFirstAdmin();
+    seedPromise = run.catch((error: unknown) => {
       seedPromise = undefined;
       throw error;
     });

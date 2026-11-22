@@ -26,6 +26,7 @@ import {
 import { Link, useLocation } from 'wouter';
 import { useRole, type UserRole } from '@/contexts/RoleContext';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { getListLmsCoursesQueryKey, useListLmsCourses } from '@/api';
 
 // Cấu hình menu riêng biệt cho từng vai trò
@@ -42,7 +43,7 @@ export const roleNavItems: Record<UserRole, Array<{ label: string; href: string;
   lecturer: [
     { label: 'Bảng điều khiển', href: '/dashboard', icon: LayoutDashboard, group: 'teaching' },
     { label: 'Danh mục khóa học', href: '/courses', icon: BookOpen, group: 'teaching' },
-    { label: 'Sổ theo dõi học sinh', href: '/learners', icon: Users, group: 'teaching' },
+    { label: 'Sổ theo dõi học sinh', href: '/accounts', icon: Users, group: 'teaching' },
     { label: 'Lộ trình bài giảng', href: '/paths', icon: Compass, group: 'teaching' },
     { label: 'Xem trước bài giảng', href: '/learn', icon: Play, group: 'review' },
     { label: 'Chứng chỉ lớp học', href: '/certificates', icon: FileBadge2, group: 'review' },
@@ -52,7 +53,7 @@ export const roleNavItems: Record<UserRole, Array<{ label: string; href: string;
     { label: 'Phòng điều hành', href: '/dashboard', icon: LayoutDashboard, group: 'overview' },
     { label: 'Danh mục Khóa học', href: '/courses', icon: BookOpen, group: 'curriculum' },
     { label: 'Khung Lộ trình', href: '/paths', icon: Compass, group: 'curriculum' },
-    { label: 'Người dùng & Phân quyền', href: '/learners', icon: Users, group: 'users' },
+    { label: 'Người dùng & Phân quyền', href: '/accounts', icon: Users, group: 'users' },
     { label: 'Sổ cấp Chứng chỉ', href: '/certificates', icon: FileBadge2, group: 'users' },
     { label: 'Bảng xếp hạng chung', href: '/leaderboard', icon: Trophy, group: 'insights' },
     { label: 'Thành tích & Huy hiệu', href: '/gamification', icon: Award, group: 'insights' },
@@ -76,7 +77,20 @@ const groupLabels: Record<string, string> = {
 export function AppShell({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('lms-sidebar-collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('lms-sidebar-collapsed', String(sidebarCollapsed));
+    } catch {
+      /* bỏ qua khi không truy cập được localStorage */
+    }
+  }, [sidebarCollapsed]);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<'system' | 'light' | 'dark'>(() => {
     return (localStorage.getItem('lms-theme-mode') as any) || (localStorage.getItem('lms-theme') === 'dark' ? 'dark' : 'system');
@@ -128,24 +142,26 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const navList = roleNavItems[role];
   const groups = Array.from(new Set(navList.map(i => i.group)));
+  // Thu gọn chỉ áp dụng trên desktop; drawer mobile luôn hiển thị đầy đủ
+  const collapsed = sidebarCollapsed && !mobileOpen;
 
   return (
     <div className="min-h-[100dvh] bg-background">
       {/* Sidebar bên trái */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[265px] flex-col bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out ${
-          mobileOpen
-            ? 'translate-x-0'
-            : sidebarCollapsed
-            ? '-translate-x-full md:-translate-x-full'
-            : '-translate-x-full md:translate-x-0'
-        }`}
+        className={`fixed inset-y-0 left-0 z-40 flex w-[265px] flex-col overflow-x-hidden whitespace-nowrap bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out ${
+          collapsed ? 'md:w-[72px]' : ''
+        } ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
-        <div className="flex h-[76px] items-center gap-3 border-b border-sidebar-border px-6">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-xs">
+        <div
+          className={`flex h-[76px] shrink-0 items-center gap-3 border-b border-sidebar-border ${
+            collapsed ? 'justify-center px-0' : 'px-6'
+          }`}
+        >
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-xs">
             <GraduationCap size={22} />
           </div>
-          <div>
+          <div className={collapsed ? 'hidden' : ''}>
             <div className="font-display text-[19px] font-extrabold leading-none tracking-tight">nếp học</div>
             <div className="mt-1 text-[10px] uppercase tracking-[.18em] text-sidebar-foreground/55">LMS Giáo dục</div>
           </div>
@@ -159,32 +175,48 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         {/* Danh sách mục Menu theo vai trò */}
-        <div className="overflow-y-auto px-4 pt-4">
+        <div data-sidebar-scroll className={`overflow-y-auto overflow-x-hidden pt-4 ${collapsed ? 'px-3' : 'px-4'}`}>
           {groups.map((group, index) => (
-            <div key={group} className={index ? 'mt-6' : ''}>
-              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.16em] text-sidebar-foreground/45">
-                {groupLabels[group] ?? group}
-              </p>
+            <div key={group} className={index ? (collapsed ? 'mt-3' : 'mt-6') : ''}>
+              {collapsed ? (
+                index > 0 && <div className="mx-2 mb-3 h-px bg-sidebar-border" />
+              ) : (
+                <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[.16em] text-sidebar-foreground/45">
+                  {groupLabels[group] ?? group}
+                </p>
+              )}
               <nav className="space-y-1">
                 {navList
                   .filter(item => item.group === group)
                   .map(item => {
                     const active = location === item.href;
-                    return (
+                    const link = (
                       <Link
                         key={item.href}
                         href={item.href}
+                        aria-label={collapsed ? item.label : undefined}
+                        aria-current={active ? 'page' : undefined}
                         data-testid={`link-nav-${item.href.replace('/', '') || 'root'}`}
-                        className={`group flex items-center gap-3 rounded-xl px-3 py-[9px] text-[13px] font-medium transition-colors ${
+                        className={`group flex items-center gap-3 rounded-xl py-[9px] text-[13px] font-medium transition-colors ${
+                          collapsed ? 'justify-center px-0' : 'px-3'
+                        } ${
                           active
-                            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-2xs'
+                            ? 'bg-sidebar-primary/15 text-sidebar-primary font-semibold'
                             : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground'
                         }`}
                       >
-                        <item.icon size={17} strokeWidth={active ? 2.3 : 1.8} />
-                        <span>{item.label}</span>
-                        {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}
+                        <item.icon size={17} strokeWidth={active ? 2.3 : 1.8} className="shrink-0" />
+                        {!collapsed && <span className="truncate">{item.label}</span>}
                       </Link>
+                    );
+                    if (!collapsed) return link;
+                    return (
+                      <Tooltip key={item.href} delayDuration={0}>
+                        <TooltipTrigger asChild>{link}</TooltipTrigger>
+                        <TooltipContent side="right" sideOffset={10}>
+                          {item.label}
+                        </TooltipContent>
+                      </Tooltip>
                     );
                   })}
               </nav>
@@ -198,7 +230,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="flex w-full items-center gap-2.5 rounded-xl p-2 text-left transition-colors hover:bg-sidebar-accent/80 data-[state=open]:bg-sidebar-accent cursor-pointer group"
+                aria-label={collapsed ? user.name : undefined}
+                className={`flex w-full items-center gap-2.5 rounded-xl p-2 text-left transition-colors hover:bg-sidebar-accent/80 data-[state=open]:bg-sidebar-accent cursor-pointer group ${
+                  collapsed ? 'justify-center' : ''
+                }`}
               >
                 <div
                   className={`grid h-8 w-8 shrink-0 place-items-center rounded-full font-bold text-xs shadow-2xs ${
@@ -211,19 +246,23 @@ export function AppShell({ children }: { children: ReactNode }) {
                 >
                   {user.avatar}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold leading-tight text-sidebar-foreground">{user.name}</p>
-                  <p className="truncate text-[10px] text-sidebar-foreground/50">{user.email || user.title}</p>
-                </div>
-                <div className="grid h-7 w-7 place-items-center rounded-lg text-sidebar-foreground/50 group-hover:text-sidebar-foreground transition-colors">
-                  <MoreHorizontal size={16} />
-                </div>
+                {!collapsed && (
+                  <>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold leading-tight text-sidebar-foreground">{user.name}</p>
+                      <p className="truncate text-[10px] text-sidebar-foreground/50">{user.email || user.title}</p>
+                    </div>
+                    <div className="grid h-7 w-7 place-items-center rounded-lg text-sidebar-foreground/50 group-hover:text-sidebar-foreground transition-colors">
+                      <MoreHorizontal size={16} />
+                    </div>
+                  </>
+                )}
               </button>
             </PopoverTrigger>
 
             <PopoverContent
-              side="top"
-              align="start"
+              side={collapsed ? 'right' : 'top'}
+              align={collapsed ? 'end' : 'start'}
               sideOffset={10}
               className="w-[245px] p-0 rounded-2xl border border-border/80 bg-popover/95 backdrop-blur-xl shadow-2xl text-popover-foreground overflow-hidden"
             >
@@ -231,7 +270,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="flex items-start justify-between p-3.5 pb-2.5 border-b border-border/50">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-xs text-foreground">{user.name}</p>
-                  <p className="truncate text-[10px] text-muted-foreground">{user.email || 'ngann@nova.vn'}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">{user.email}</p>
                 </div>
                 <div className="text-muted-foreground/60 hover:text-foreground cursor-pointer">
                   <Settings2 size={14} />
@@ -413,7 +452,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Vùng nội dung chính */}
       <div
         className={`min-h-[100dvh] transition-all duration-300 ease-in-out ${
-          sidebarCollapsed ? 'md:pl-0' : 'md:pl-[265px]'
+          sidebarCollapsed ? 'md:pl-[72px]' : 'md:pl-[265px]'
         }`}
       >
         {/* Header trên cùng gọn gàng, tinh tế */}
@@ -459,8 +498,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <span className="font-semibold text-foreground">Bảng điều khiển</span>
               ) : location === '/learn' ? (
                 <span className="font-semibold text-foreground">Bàn học trực tuyến</span>
-              ) : location === '/learners' ? (
-                <span className="font-semibold text-foreground">Sổ theo dõi học sinh</span>
+              ) : location === '/accounts' ? (
+                <span className="font-semibold text-foreground">
+                  {role === 'admin' ? 'Người dùng & Phân quyền' : 'Sổ theo dõi học sinh'}
+                </span>
               ) : location === '/paths' ? (
                 <span className="font-semibold text-foreground">Lộ trình bài giảng</span>
               ) : location === '/certificates' ? (

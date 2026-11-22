@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useLocation, Link } from 'wouter';
 import {
   BookOpen,
   GraduationCap,
@@ -18,8 +17,8 @@ import { Notice, Field } from '@/components/common';
 import { useRole, type UserRole } from '@/contexts/RoleContext';
 
 export default function Login() {
-  const [, setLocation] = useLocation();
-  const { login, switchRole } = useRole();
+  // Chuyển trang sau khi đăng nhập do LoginRoute (App.tsx) đảm nhận
+  const { login, switchRole, canSwitchRole } = useRole();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -34,9 +33,7 @@ export default function Login() {
     const res = await login(email, password);
     setLoading(false);
 
-    if (res.success) {
-      setLocation('/');
-    } else {
+    if (!res.success) {
       setErrorMsg(res.message || 'Email hoặc mật khẩu không chính xác.');
     }
   };
@@ -44,9 +41,9 @@ export default function Login() {
   const handleDemoQuickLogin = async (role: UserRole) => {
     setErrorMsg('');
     setLoading(true);
-    await switchRole(role);
+    const res = await switchRole(role);
     setLoading(false);
-    setLocation(role === 'student' ? '/learn' : '/');
+    if (!res.success) setErrorMsg(res.message || 'Không thể đăng nhập demo.');
   };
 
   return (
@@ -84,7 +81,7 @@ export default function Login() {
                     required
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder="ngann@nova.vn"
+                    placeholder="ngann@boom.vn"
                     className="pl-9"
                   />
                 </div>
@@ -112,16 +109,19 @@ export default function Login() {
                 </div>
               </Field>
 
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Mật khẩu mặc định demo: <code className="font-mono font-bold text-foreground">123456</code></span>
-              </div>
+              {canSwitchRole && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Mật khẩu mặc định demo: <code className="font-mono font-bold text-foreground">123456</code></span>
+                </div>
+              )}
 
               <Button type="submit" disabled={loading} className="w-full font-semibold">
                 {loading ? 'Đang xác thực...' : 'Đăng nhập'}
               </Button>
             </form>
 
-            {/* Khối Đăng nhập nhanh Demo cho 3 vai trò */}
+            {/* Khối Đăng nhập nhanh Demo cho 3 vai trò (chỉ khi máy chủ bật ENABLE_DEMO_LOGIN) */}
+            {canSwitchRole && (
             <div className="mt-6 border-t border-border pt-5">
               <div className="mb-3 flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -133,6 +133,7 @@ export default function Login() {
               <div className="grid gap-2">
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => handleDemoQuickLogin('student')}
                   className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-2.5 text-left text-xs transition hover:bg-emerald-500/10"
                 >
@@ -150,6 +151,7 @@ export default function Login() {
 
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => handleDemoQuickLogin('lecturer')}
                   className="flex items-center justify-between rounded-xl border border-blue-500/30 bg-blue-500/5 px-3.5 py-2.5 text-left text-xs transition hover:bg-blue-500/10"
                 >
@@ -167,6 +169,7 @@ export default function Login() {
 
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => handleDemoQuickLogin('admin')}
                   className="flex items-center justify-between rounded-xl border border-amber-500/30 bg-amber-500/5 px-3.5 py-2.5 text-left text-xs transition hover:bg-amber-500/10"
                 >
@@ -183,13 +186,10 @@ export default function Login() {
                 </button>
               </div>
             </div>
+            )}
 
-            {/* Link chuyển sang Đăng ký */}
             <div className="mt-6 text-center text-xs text-muted-foreground">
-              Bạn chưa có tài khoản?{' '}
-              <Link href="/signup" className="font-bold text-primary hover:underline">
-                Đăng ký tài khoản mới
-              </Link>
+              Chưa có tài khoản? Vui lòng liên hệ quản trị viên nhà trường để được cấp tài khoản.
             </div>
           </CardContent>
         </Card>
