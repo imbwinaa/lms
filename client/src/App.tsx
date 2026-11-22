@@ -3,11 +3,10 @@ import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@ta
 import { Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import { ApiError } from '@/api';
 import { ErrorBoundary } from '@/components/error-boundary';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { RoleProvider, UNAUTHORIZED_EVENT, useRole, type UserRole } from '@/contexts/RoleContext';
 import { AppShell } from '@/components/layout';
-import CourseStudio from '@/pages/CourseStudio';
 import {
   Dashboard,
   Courses,
@@ -21,7 +20,10 @@ import {
   Plugins,
   Login,
   NotFound,
+  ComingSoon,
 } from '@/pages';
+import { isWipPath } from '@/lib/features';
+import CourseStudio from '@/pages/CourseStudio';
 
 // 401 từ bất kỳ request nào -> phát sự kiện để RoleProvider đăng xuất
 function notifyUnauthorized(error: unknown) {
@@ -84,7 +86,13 @@ function ProtectedApp() {
       <Switch>
         {appRoutes.map(({ path, component: Page, roles }) => (
           <Route key={path} path={path}>
-            {roles.includes(role) ? <Page /> : <Redirect to="/dashboard" replace />}
+            {!roles.includes(role) ? (
+              <Redirect to="/dashboard" replace />
+            ) : isWipPath(path) ? (
+              <ComingSoon />
+            ) : (
+              <Page />
+            )}
           </Route>
         ))}
         {/* Đường dẫn cũ, giữ để không làm hỏng bookmark */}

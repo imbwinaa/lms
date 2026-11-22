@@ -217,8 +217,9 @@ export default function CourseDetail() {
 
       {/* 2. Main Content 4 Tabs & Action Buttons at the same level */}
       <Tabs value={activeTab} onValueChange={v => setActiveTab(v as any)} className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <TabsList className="grid grid-cols-2 sm:grid-cols-4 h-11 w-full sm:max-w-xl bg-muted/60 p-1 rounded-xl">
+        {/* Hàng tab & nút thao tác: xuống dòng khi màn hình chưa đủ rộng để các nhãn không chồng lên nhau */}
+        <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+          <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl bg-muted/60 p-1 sm:h-11 sm:grid-cols-4 2xl:max-w-xl">
             <TabsTrigger value="syllabus" className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
               <BookOpen size={14} />
               Đề cương ({outlineLessons.filter(l => l.isPublished).length})
@@ -240,7 +241,7 @@ export default function CourseDetail() {
           </TabsList>
 
           {/* Nút Vào bàn học trực tuyến & Các nút thao tác cùng hàng với Tabs */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             {canManage && (
               <>
                 <Button

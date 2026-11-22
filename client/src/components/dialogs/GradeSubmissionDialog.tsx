@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Field, Notice, Avatar } from '@/components/common';
+import { notify } from '@/lib/toast';
 import {
   formatDateTime,
   getErrorMessage,
@@ -56,6 +57,7 @@ export function GradeSubmissionDialog({
       });
       await invalidateLms(queryClient);
       onGraded?.(updated);
+      notify.success(`Đã lưu điểm cho ${submission.studentName}.`, `${numGrade}/${assignment.maxPoints} điểm`);
       onClose();
     } catch (err) {
       setError(true);

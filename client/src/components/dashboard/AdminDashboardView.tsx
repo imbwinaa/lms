@@ -31,6 +31,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useRole } from '@/contexts/RoleContext';
 import { CourseDialog } from '@/components/dialogs';
+import { CourseCover } from '@/components/studio/CourseCover';
 
 export function AdminDashboardView() {
   const { user } = useRole();
@@ -200,15 +201,20 @@ export function AdminDashboardView() {
                     {filteredCourses.map(course => (
                       <tr key={course.id} className="hover:bg-muted/30 transition-colors">
                         <td className="py-3 px-3">
-                          <Link
-                            href={`/courses/${course.id}`}
-                            className="font-semibold text-foreground hover:text-primary transition-colors block line-clamp-1"
-                          >
-                            {course.title}
-                          </Link>
-                          <span className="text-[10px] text-muted-foreground">
-                            {course.lessons} bài học · {course.duration || '2 giờ'}
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <CourseCover course={course} className="hidden h-9 w-16 shrink-0 rounded-md 2xl:block [&_svg]:size-4" />
+                            <div className="min-w-0">
+                              <Link
+                                href={`/courses/${course.id}`}
+                                className="font-semibold text-foreground hover:text-primary transition-colors block line-clamp-1"
+                              >
+                                {course.title}
+                              </Link>
+                              <span className="text-[10px] text-muted-foreground">
+                                {course.lessons} bài học · {course.duration || '2 giờ'}
+                              </span>
+                            </div>
+                          </div>
                         </td>
                         <td className="py-3 px-3">
                           <Badge variant="outline" className="text-[10px] font-medium border-border/70">
@@ -280,16 +286,20 @@ export function AdminDashboardView() {
                   <ChevronRight size={13} className="text-muted-foreground" />
                 </Link>
 
-                <Link
-                  href="/certificates"
-                  className="flex items-center justify-between p-2.5 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/50 transition-colors text-xs font-semibold text-foreground"
+                {/* Sổ chứng chỉ đang phát triển (xem lib/features.ts) */}
+                <div
+                  aria-disabled="true"
+                  title="Tính năng đang phát triển"
+                  className="flex cursor-not-allowed items-center justify-between p-2.5 rounded-xl border border-dashed border-border/60 text-xs font-semibold text-muted-foreground/70"
                 >
                   <div className="flex items-center gap-2">
-                    <FileBadge2 size={15} className="text-emerald-500" />
+                    <FileBadge2 size={15} className="opacity-60" />
                     <span>Sổ cấp phát chứng chỉ số</span>
                   </div>
-                  <ChevronRight size={13} className="text-muted-foreground" />
-                </Link>
+                  <span className="rounded-full border border-border px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide">
+                    Sắp có
+                  </span>
+                </div>
 
                 <Link
                   href="/paths"

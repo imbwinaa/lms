@@ -19,15 +19,16 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   formatDate,
-  getErrorMessage,
   invalidateLms,
   recordMaterialDownload,
   useDeleteMaterial,
+  useGetCourseOutline,
   useGetLmsCourse,
   useListCourseMaterials,
   type Material,
 } from '@/api';
 import { QueryState } from '@/components/common';
+import { notify } from '@/lib/toast';
 import { CreateMaterialDialog } from '@/components/dialogs/CreateMaterialDialog';
 import { useRole } from '@/contexts/RoleContext';
 
@@ -40,6 +41,11 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
   const queryClient = useQueryClient();
   const courseQuery = useGetLmsCourse(courseId);
   const materialsQuery = useListCourseMaterials(courseId);
+  // Tên bài học chứa từng tài liệu (tài liệu gắn bài học qua lessonId)
+  const outlineQuery = useGetCourseOutline(courseId);
+  const lessonTitles = new Map(
+    (outlineQuery.data?.sections ?? []).flatMap(s => s.lessons.map(l => [l.id, l.title] as const)),
+  );
   const deleteMaterial = useDeleteMaterial();
   const canManage = canManageCourse(courseQuery.data);
   const materials = materialsQuery.data ?? [];
@@ -62,8 +68,9 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
     try {
       await deleteMaterial.mutateAsync({ id });
       await invalidateLms(queryClient);
+      notify.success('Đã xóa tài liệu khỏi khóa học.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Chưa thể xóa tài liệu.'));
+      notify.error(err, 'Chưa thể xóa tài liệu.');
     }
   };
 
@@ -202,8 +209,8 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="font-display text-sm font-bold text-foreground">{m.title}</h4>
                       {getTypeBadge(m.type)}
-                      {m.lessonNumber && (
-                        <span className="text-[10px] font-medium text-muted-foreground">· Bài {m.lessonNumber}</span>
+                      {m.lessonId !== null && lessonTitles.has(m.lessonId) && (
+                        <span className="text-[10px] font-medium text-muted-foreground">· {lessonTitles.get(m.lessonId)}</span>
                       )}
                     </div>
 

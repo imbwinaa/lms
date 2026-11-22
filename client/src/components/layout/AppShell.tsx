@@ -27,6 +27,7 @@ import { Link, useLocation } from 'wouter';
 import { useRole, type UserRole } from '@/contexts/RoleContext';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { isWipPath } from '@/lib/features';
 import { getListLmsCoursesQueryKey, useListLmsCourses } from '@/api';
 
 // Cấu hình menu riêng biệt cho từng vai trò
@@ -190,6 +191,37 @@ export function AppShell({ children }: { children: ReactNode }) {
                   .filter(item => item.group === group)
                   .map(item => {
                     const active = location === item.href;
+                    if (isWipPath(item.href)) {
+                      // Tính năng đang phát triển: hiển thị mờ, không bấm được
+                      return (
+                        <Tooltip key={item.href} delayDuration={0}>
+                          <TooltipTrigger asChild>
+                            <span
+                              role="link"
+                              aria-disabled="true"
+                              aria-label={`${item.label} (đang phát triển)`}
+                              tabIndex={0}
+                              className={`flex cursor-not-allowed items-center gap-3 rounded-xl py-[9px] text-[13px] font-medium text-sidebar-foreground/35 ${
+                                collapsed ? 'justify-center px-0' : 'px-3'
+                              }`}
+                            >
+                              <item.icon size={17} strokeWidth={1.8} className="shrink-0" />
+                              {!collapsed && (
+                                <>
+                                  <span className="truncate">{item.label}</span>
+                                  <span className="ml-auto shrink-0 rounded-full border border-sidebar-border px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide">
+                                    Sắp có
+                                  </span>
+                                </>
+                              )}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" sideOffset={10}>
+                            {collapsed ? `${item.label} · Đang phát triển` : 'Tính năng đang phát triển'}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
                     const link = (
                       <Link
                         key={item.href}

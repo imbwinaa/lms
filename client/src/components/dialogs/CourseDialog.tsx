@@ -6,6 +6,7 @@ import type { Course, CourseInput, MediaType } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Notice, Field, MediaUploader } from '@/components/common';
+import { notify } from '@/lib/toast';
 
 export type CourseDialogProps = {
   open: boolean;
@@ -28,7 +29,6 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
     category: '',
     level: 'Cơ bản',
     duration: '',
-    lessons: 1,
     format: 'Native',
   });
 
@@ -51,7 +51,6 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
               category: course.category,
               level: course.level,
               duration: course.duration,
-              lessons: course.lessons,
               format: course.format,
             }
           : {
@@ -60,7 +59,6 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
               category: 'Kỹ năng',
               level: 'Cơ bản',
               duration: '2 giờ',
-              lessons: 4,
               format: 'Native',
             }
       );
@@ -78,8 +76,8 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
     setErr(false);
     const onSuccess = () => {
       void invalidateLms(qc);
-      setFeedback(course ? 'Đã cập nhật bài giảng.' : 'Đã tạo khóa học mới.');
-      setTimeout(onClose, 650);
+      notify.success(course ? 'Đã cập nhật bài giảng.' : 'Đã tạo khóa học mới.', form.title);
+      onClose();
     };
     const onError = (error: unknown) => {
       setErr(true);
@@ -142,7 +140,8 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
               />
             </Field>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
+          {/* Số bài học được tính từ các bài đã xuất bản trong studio */}
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Cấp độ">
               <select
                 value={form.level}
@@ -153,14 +152,6 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
                 <option>Trung cấp</option>
                 <option>Nâng cao</option>
               </select>
-            </Field>
-            <Field label="Số bài học">
-              <Input
-                type="number"
-                min={1}
-                value={form.lessons}
-                onChange={e => set('lessons', Number(e.target.value))}
-              />
             </Field>
             <Field label="Định dạng bài giảng">
               <select

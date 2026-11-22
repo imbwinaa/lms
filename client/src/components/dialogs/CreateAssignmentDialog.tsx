@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Field, Notice } from '@/components/common';
+import { notify } from '@/lib/toast';
 import {
   formatFileSize,
   getErrorMessage,
@@ -65,6 +66,7 @@ export function CreateAssignmentDialog({ open, courseId, onClose, onCreated }: C
       });
       await invalidateLms(queryClient);
       onCreated?.(created);
+      notify.success('Đã giao bài tập mới.', created.title);
       setTitle('');
       setDescription('');
       setDueDate('');
