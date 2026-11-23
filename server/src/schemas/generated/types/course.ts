@@ -14,6 +14,9 @@
 import type { CourseFormat } from './courseFormat';
 import type { CourseLevel } from './courseLevel';
 import type { CourseStatus } from './courseStatus';
+import type { CourseVisibility } from './courseVisibility';
+import type { EnrollmentMethod } from './enrollmentMethod';
+import type { MyEnrollment } from './myEnrollment';
 
 export interface Course {
   id: number;
@@ -41,4 +44,7 @@ export interface Course {
      * @nullable
      */
   coverImageUrl: string | null;
+  visibility: CourseVisibility;
+  enrollmentMethod: EnrollmentMethod;
+  myEnrollment: MyEnrollment;
 }

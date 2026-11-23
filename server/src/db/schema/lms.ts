@@ -8,6 +8,7 @@ import {
   real,
   serial,
   text,
+  timestamp,
   uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -32,6 +33,10 @@ export const lmsCoursesTable = pgTable("lms_courses", {
   mediaUrl: text("media_url"),
   mediaType: text("media_type").default("video"),
   coverImageUrl: text("cover_image_url"),
+  // "public": mọi học viên thấy (khi đang hoạt động); "private": chỉ học viên được mời/ghi danh
+  visibility: text("visibility").notNull().default("public"),
+  // Khóa công khai: "open" tham gia ngay, "approval" cần giảng viên duyệt
+  enrollmentMethod: text("enrollment_method").notNull().default("open"),
 }, (t) => [index("lms_courses_instructor_idx").on(t.instructorId)]);
 
 export const lmsLearnersTable = pgTable("lms_learners", {
@@ -361,3 +366,80 @@ export const lmsLessonCompletionsTable = pgTable(
 export type LmsCourseSection = typeof lmsCourseSectionsTable.$inferSelect;
 export type LmsLesson = typeof lmsLessonsTable.$inferSelect;
 export type LmsQuizQuestion = typeof lmsQuizQuestionsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Lịch học: buổi học trực tuyến (Teams / Google Meet / Zoom) của khóa học
+// ---------------------------------------------------------------------------
+export const lmsClassSessionsTable = pgTable(
+  "lms_class_sessions",
+  {
+    id: serial("id").primaryKey(),
+    courseId: integer("course_id")
+      .notNull()
+      .references(() => lmsCoursesTable.id, { onDelete: "cascade" }),
+    lessonId: integer("lesson_id").references(() => lmsLessonsTable.id, { onDelete: "set null" }),
+    title: text("title"),
+    notes: text("notes"),
+    meetingUrl: text("meeting_url").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    durationMinutes: integer("duration_minutes").notNull().default(60),
+    // Các buổi tạo cùng lúc theo lịch lặp hằng tuần dùng chung seriesId
+    seriesId: text("series_id"),
+    createdBy: integer("created_by").references(() => lmsLearnersTable.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("lms_class_sessions_course_start_idx").on(t.courseId, t.startsAt),
+    index("lms_class_sessions_series_idx").on(t.seriesId),
+  ],
+);
+
+export type LmsClassSession = typeof lmsClassSessionsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Yêu cầu tham gia khóa học (khóa "cần duyệt") và liên kết mời (khóa riêng tư)
+// ---------------------------------------------------------------------------
+export const lmsEnrollmentRequestsTable = pgTable(
+  "lms_enrollment_requests",
+  {
+    id: serial("id").primaryKey(),
+    courseId: integer("course_id")
+      .notNull()
+      .references(() => lmsCoursesTable.id, { onDelete: "cascade" }),
+    learnerId: integer("learner_id")
+      .notNull()
+      .references(() => lmsLearnersTable.id, { onDelete: "cascade" }),
+    // "pending" | "approved" | "rejected"
+    status: text("status").notNull().default("pending"),
+    message: text("message"),
+    decidedBy: integer("decided_by").references(() => lmsLearnersTable.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("lms_enrollment_requests_course_learner_unique").on(t.courseId, t.learnerId),
+    index("lms_enrollment_requests_course_status_idx").on(t.courseId, t.status),
+  ],
+);
+
+export const lmsCourseInvitesTable = pgTable(
+  "lms_course_invites",
+  {
+    id: serial("id").primaryKey(),
+    courseId: integer("course_id")
+      .notNull()
+      .references(() => lmsCoursesTable.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    maxUses: integer("max_uses"),
+    uses: integer("uses").notNull().default(0),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdBy: integer("created_by").references(() => lmsLearnersTable.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("lms_course_invites_token_unique").on(t.token), index("lms_course_invites_course_idx").on(t.courseId)],
+);
+
+export type LmsEnrollmentRequest = typeof lmsEnrollmentRequestsTable.$inferSelect;
+export type LmsCourseInvite = typeof lmsCourseInvitesTable.$inferSelect;

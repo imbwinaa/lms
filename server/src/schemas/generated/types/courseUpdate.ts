@@ -14,6 +14,8 @@
 import type { CourseFormat } from './courseFormat';
 import type { CourseLevel } from './courseLevel';
 import type { CourseStatus } from './courseStatus';
+import type { CourseVisibility } from './courseVisibility';
+import type { EnrollmentMethod } from './enrollmentMethod';
 import type { MediaType } from './mediaType';
 
 export interface CourseUpdate {
@@ -34,4 +36,6 @@ export interface CourseUpdate {
   mediaType?: MediaType;
   /** @nullable */
   coverImageUrl?: string | null;
+  visibility?: CourseVisibility;
+  enrollmentMethod?: EnrollmentMethod;
 }

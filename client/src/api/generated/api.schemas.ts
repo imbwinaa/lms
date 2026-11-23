@@ -143,6 +143,40 @@ export const MediaType = {
   scorm: 'scorm',
 } as const;
 
+/**
+ * public: listed for every student; private: only enrolled students (invite-only)
+ */
+export type CourseVisibility = typeof CourseVisibility[keyof typeof CourseVisibility];
+
+
+export const CourseVisibility = {
+  public: 'public',
+  private: 'private',
+} as const;
+
+/**
+ * How students join a public course: open (instantly) or approval (instructor approves)
+ */
+export type EnrollmentMethod = typeof EnrollmentMethod[keyof typeof EnrollmentMethod];
+
+
+export const EnrollmentMethod = {
+  open: 'open',
+  approval: 'approval',
+} as const;
+
+/**
+ * The current student's state in this course (staff: none)
+ */
+export type MyEnrollment = typeof MyEnrollment[keyof typeof MyEnrollment];
+
+
+export const MyEnrollment = {
+  enrolled: 'enrolled',
+  pending: 'pending',
+  none: 'none',
+} as const;
+
 export interface Course {
   id: number;
   title: string;
@@ -169,6 +203,9 @@ export interface Course {
      * @nullable
      */
   coverImageUrl: string | null;
+  visibility: CourseVisibility;
+  enrollmentMethod: EnrollmentMethod;
+  myEnrollment: MyEnrollment;
 }
 
 export interface CourseInput {
@@ -188,6 +225,8 @@ export interface CourseInput {
   mediaType?: MediaType;
   /** @nullable */
   coverImageUrl?: string | null;
+  visibility?: CourseVisibility;
+  enrollmentMethod?: EnrollmentMethod;
 }
 
 export interface CourseUpdate {
@@ -208,6 +247,101 @@ export interface CourseUpdate {
   mediaType?: MediaType;
   /** @nullable */
   coverImageUrl?: string | null;
+  visibility?: CourseVisibility;
+  enrollmentMethod?: EnrollmentMethod;
+}
+
+export interface JoinCourseInput {
+  /**
+     * Optional note to the instructor (approval courses)
+     * @maxLength 500
+     */
+  message?: string;
+}
+
+export interface JoinCourseResult {
+  courseId: number;
+  status: MyEnrollment;
+  message: string;
+}
+
+export type EnrollmentRequestStatus = typeof EnrollmentRequestStatus[keyof typeof EnrollmentRequestStatus];
+
+
+export const EnrollmentRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface EnrollmentRequest {
+  id: number;
+  courseId: number;
+  learnerId: number;
+  learnerName: string;
+  learnerEmail: string;
+  learnerTeam: string;
+  /** @nullable */
+  message: string | null;
+  status: EnrollmentRequestStatus;
+  createdAt: string;
+}
+
+export type EnrollmentDecisionInputDecision = typeof EnrollmentDecisionInputDecision[keyof typeof EnrollmentDecisionInputDecision];
+
+
+export const EnrollmentDecisionInputDecision = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface EnrollmentDecisionInput {
+  decision: EnrollmentDecisionInputDecision;
+}
+
+export interface CourseInvite {
+  id: number;
+  courseId: number;
+  /** Share as <app>/invite/<token> */
+  token: string;
+  /** @nullable */
+  expiresAt: string | null;
+  /** @nullable */
+  maxUses: number | null;
+  uses: number;
+  revoked: boolean;
+  /** Not revoked, not expired and not used up */
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CourseInviteInput {
+  /**
+     * Must be in the future; null = never
+     * @nullable
+     */
+  expiresAt?: string | null;
+  /**
+     * null = unlimited
+     * @minimum 1
+     * @maximum 1000
+     * @nullable
+     */
+  maxUses?: number | null;
+}
+
+export interface InvitePreview {
+  courseId: number;
+  courseTitle: string;
+  courseDescription: string;
+  instructorName: string;
+  valid: boolean;
+  /**
+     * Why the link can't be used
+     * @nullable
+     */
+  reason: string | null;
+  alreadyEnrolled: boolean;
 }
 
 export type AccountStatus = typeof AccountStatus[keyof typeof AccountStatus];
@@ -698,6 +832,105 @@ export interface QuizAttemptResult {
   completion: LessonCompletionResult | null;
 }
 
+export type MeetingPlatform = typeof MeetingPlatform[keyof typeof MeetingPlatform];
+
+
+export const MeetingPlatform = {
+  teams: 'teams',
+  meet: 'meet',
+  zoom: 'zoom',
+  other: 'other',
+} as const;
+
+export interface ClassSession {
+  id: number;
+  courseId: number;
+  courseTitle: string;
+  /** @nullable */
+  lessonId: number | null;
+  /** @nullable */
+  lessonTitle: string | null;
+  /** Topic, or the course title when none was given */
+  title: string;
+  /** @nullable */
+  notes: string | null;
+  /**
+     * Only for enrolled students, the instructor and admins
+     * @nullable
+     */
+  meetingUrl: string | null;
+  platform: MeetingPlatform;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+  /**
+     * Shared by sessions created together as a weekly series
+     * @nullable
+     */
+  seriesId: string | null;
+  /** The current user may open the meeting link */
+  canJoin: boolean;
+}
+
+export interface ClassSessionInput {
+  /** @maxLength 200 */
+  title?: string;
+  /** @maxLength 2000 */
+  notes?: string;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  meetingUrl: string;
+  startsAt: string;
+  /**
+     * @minimum 15
+     * @maximum 480
+     */
+  durationMinutes: number;
+  /** @nullable */
+  lessonId?: number | null;
+  /**
+     * Total number of weekly sessions to create (1 = a single session)
+     * @minimum 1
+     * @maximum 26
+     */
+  repeatWeeks?: number;
+}
+
+export interface ClassSessionUpdate {
+  /** @maxLength 200 */
+  title?: string;
+  /** @maxLength 2000 */
+  notes?: string;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  meetingUrl?: string;
+  startsAt?: string;
+  /**
+     * @minimum 15
+     * @maximum 480
+     */
+  durationMinutes?: number;
+  /** @nullable */
+  lessonId?: number | null;
+}
+
+export type SessionDeleteScope = typeof SessionDeleteScope[keyof typeof SessionDeleteScope];
+
+
+export const SessionDeleteScope = {
+  single: 'single',
+  following: 'following',
+} as const;
+
+export interface SessionDeleteResult {
+  deleted: number;
+  message: string;
+}
+
 export interface MediaPreset {
   id: string;
   title: string;
@@ -776,6 +1009,25 @@ export type ConflictResponse = ErrorResponse;
  * Rate limited
  */
 export type TooManyRequestsResponse = ErrorResponse;
+
+export type ListCourseSessionsParams = {
+  /** Only sessions ending at or after this time (ISO 8601) */
+  from?: string;
+  /** Only sessions starting before this time (ISO 8601) */
+  to?: string;
+};
+
+export type ListUpcomingSessionsParams = {
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+};
+
+export type DeleteCourseSessionParams = {
+  scope?: SessionDeleteScope;
+};
 
 export type ListMySubmissionsParams = {
   status?: SubmissionStatus;

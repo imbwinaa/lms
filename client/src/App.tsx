@@ -21,6 +21,7 @@ import {
   Login,
   NotFound,
   ComingSoon,
+  InviteAccept,
 } from '@/pages';
 import { isWipPath } from '@/lib/features';
 import CourseStudio from '@/pages/CourseStudio';
@@ -61,6 +62,7 @@ const appRoutes: Array<{ path: string; component: ComponentType; roles: UserRole
   { path: '/gamification', component: Gamification, roles: ALL_ROLES },
   { path: '/plugins', component: Plugins, roles: ['admin'] },
   { path: '/learn', component: LearningPortal, roles: ALL_ROLES },
+  { path: '/invite/:token', component: InviteAccept, roles: ALL_ROLES },
 ];
 
 function FullPageSpinner() {

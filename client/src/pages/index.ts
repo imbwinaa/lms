@@ -11,3 +11,4 @@ export { default as Plugins } from './Plugins';
 export { default as Login } from './Login';
 export { default as NotFound } from './not-found';
 export { default as ComingSoon } from './ComingSoon';
+export { default as InviteAccept } from './InviteAccept';

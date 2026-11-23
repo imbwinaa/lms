@@ -42,7 +42,8 @@ export default function LearningPortal() {
   const queryClient = useQueryClient();
 
   const coursesQuery = useListLmsCourses();
-  const courses = coursesQuery.data ?? [];
+  // Học viên: chỉ khóa đã ghi danh
+  const courses = (coursesQuery.data ?? []).filter(c => role !== 'student' || c.myEnrollment === 'enrolled');
   const courseId = Number(params.get('courseId')) || courses[0]?.id || 0;
   const selectedLessonId = Number(params.get('lesson')) || null;
 
