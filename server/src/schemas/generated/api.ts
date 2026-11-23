@@ -1411,6 +1411,34 @@ export const ListUpcomingSessionsResponse = zod.array(ListUpcomingSessionsRespon
 
 
 /**
+ * Same course scope as /lms/sessions/upcoming. The range may span at most 190 days.
+ * @summary Sessions across the current user's courses that overlap a time range (dashboard calendar)
+ */
+export const ListCalendarSessionsQueryParams = zod.object({
+  "from": zod.iso.datetime({"offset":true}),
+  "to": zod.iso.datetime({"offset":true})
+})
+
+export const ListCalendarSessionsResponseItem = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "courseTitle": zod.string(),
+  "lessonId": zod.int().nullable(),
+  "lessonTitle": zod.string().nullable(),
+  "title": zod.string().describe('Topic, or the course title when none was given'),
+  "notes": zod.string().nullable(),
+  "meetingUrl": zod.string().nullable().describe('Only for enrolled students, the instructor and admins'),
+  "platform": zod.enum(['teams', 'meet', 'zoom', 'other']),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "durationMinutes": zod.int(),
+  "seriesId": zod.string().nullable().describe('Shared by sessions created together as a weekly series'),
+  "canJoin": zod.boolean().describe('The current user may open the meeting link')
+})
+export const ListCalendarSessionsResponse = zod.array(ListCalendarSessionsResponseItem)
+
+
+/**
  * @summary Edit one session (instructor or admin)
  */
 

@@ -908,6 +908,30 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ClassSession" }
+  /lms/sessions/calendar:
+    get:
+      operationId: listCalendarSessions
+      tags: [schedule]
+      summary: Sessions across the current user's courses that overlap a time range (dashboard calendar)
+      description: Same course scope as /lms/sessions/upcoming. The range may span at most 190 days.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Sessions ordered by start time
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClassSession" }
+        "400": { $ref: "#/components/responses/BadRequest" }
   /lms/sessions/{id}:
     parameters:
       - $ref: "#/components/parameters/IdPath"

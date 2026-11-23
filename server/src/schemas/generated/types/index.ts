@@ -75,6 +75,7 @@ export * from './lessonInput';
 export * from './lessonSummary';
 export * from './lessonType';
 export * from './lessonUpdate';
+export * from './listCalendarSessionsParams';
 export * from './listCourseSessionsParams';
 export * from './listMySubmissionsParams';
 export * from './listUpcomingSessionsParams';

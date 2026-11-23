@@ -1025,6 +1025,11 @@ export type ListUpcomingSessionsParams = {
   limit?: number;
 };
 
+export type ListCalendarSessionsParams = {
+  from: string;
+  to: string;
+};
+
 export type DeleteCourseSessionParams = {
   scope?: SessionDeleteScope;
 };

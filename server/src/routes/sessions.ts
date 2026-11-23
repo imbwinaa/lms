@@ -21,6 +21,7 @@ import {
   DeleteCourseSessionQueryParams,
   ListCourseSessionsParams,
   ListCourseSessionsQueryParams,
+  ListCalendarSessionsQueryParams,
   ListUpcomingSessionsQueryParams,
   UpdateCourseSessionBody,
   UpdateCourseSessionParams,
@@ -180,24 +181,29 @@ router.post("/lms/courses/:id/sessions", async (req, res) => {
 // ---------------------------------------------------------------------------
 // BUỔI HỌC SẮP TỚI (bảng điều khiển)
 // ---------------------------------------------------------------------------
-router.get("/lms/sessions/upcoming", async (req, res) => {
-  const user = currentUser(req);
-  const { limit } = parseOr400(ListUpcomingSessionsQueryParams, req.query);
-
-  let courseIds: number[] | "all" = "all";
+/** Khóa học trong phạm vi lịch của người dùng: học viên — đã ghi danh, giảng viên — mình dạy, admin — tất cả */
+async function scheduleCourseIds(user: AuthUser): Promise<number[] | "all"> {
   if (user.role === "student") {
     const rows = await db
       .select({ id: lmsEnrollmentsTable.courseId })
       .from(lmsEnrollmentsTable)
       .where(eq(lmsEnrollmentsTable.learnerId, user.id));
-    courseIds = rows.map((r) => r.id);
-  } else if (user.role === "lecturer") {
+    return rows.map((r) => r.id);
+  }
+  if (user.role === "lecturer") {
     const rows = await db
       .select({ id: lmsCoursesTable.id })
       .from(lmsCoursesTable)
       .where(eq(lmsCoursesTable.instructorId, user.id));
-    courseIds = rows.map((r) => r.id);
+    return rows.map((r) => r.id);
   }
+  return "all";
+}
+
+router.get("/lms/sessions/upcoming", async (req, res) => {
+  const user = currentUser(req);
+  const { limit } = parseOr400(ListUpcomingSessionsQueryParams, req.query);
+  const courseIds = await scheduleCourseIds(user);
   if (courseIds !== "all" && courseIds.length === 0) {
     res.json([]);
     return;
@@ -210,6 +216,34 @@ router.get("/lms/sessions/upcoming", async (req, res) => {
     .orderBy(asc(lmsClassSessionsTable.startsAt))
     .limit(limit ?? 5);
   // Đã lọc theo khóa học của chính người dùng -> luôn được tham gia
+  res.json(rows.map((row) => formatSession(row, true)));
+});
+
+const MAX_CALENDAR_DAYS = 190;
+
+// Lịch theo khoảng thời gian (bảng điều khiển: xem từng ngày, ±2 tháng)
+router.get("/lms/sessions/calendar", async (req, res) => {
+  const user = currentUser(req);
+  const query = parseOr400(ListCalendarSessionsQueryParams, req.query);
+  const from = new Date(query.from);
+  const to = new Date(query.to);
+  if (to <= from) throw badRequest("Thời điểm kết thúc phải sau thời điểm bắt đầu.");
+  if (to.getTime() - from.getTime() > MAX_CALENDAR_DAYS * 86_400_000) {
+    throw badRequest(`Khoảng thời gian tối đa ${MAX_CALENDAR_DAYS} ngày.`);
+  }
+  const courseIds = await scheduleCourseIds(user);
+  if (courseIds !== "all" && courseIds.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  // Buổi học giao với khoảng [from, to)
+  const conditions: SQL[] = [endsAfter(from), lt(lmsClassSessionsTable.startsAt, to)];
+  if (courseIds !== "all") conditions.push(inArray(lmsClassSessionsTable.courseId, courseIds));
+  const rows = await selectSessions()
+    .where(and(...conditions))
+    .orderBy(asc(lmsClassSessionsTable.startsAt))
+    .limit(1000);
   res.json(rows.map((row) => formatSession(row, true)));
 });
 
