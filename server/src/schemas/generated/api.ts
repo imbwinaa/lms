@@ -1069,6 +1069,194 @@ export const RecordXapiEventResponse = zod.object({
 
 
 /**
+ * meetingUrl is only returned to enrolled students, the course instructor and admins;
+ * other viewers of an open course get null.
+ * @summary Live sessions of a course, ordered by start time
+ */
+
+
+
+export const ListCourseSessionsParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const ListCourseSessionsQueryParams = zod.object({
+  "from": zod.iso.datetime({"offset":true}).optional().describe('Only sessions ending at or after this time (ISO 8601)'),
+  "to": zod.iso.datetime({"offset":true}).optional().describe('Only sessions starting before this time (ISO 8601)')
+})
+
+export const ListCourseSessionsResponseItem = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "courseTitle": zod.string(),
+  "lessonId": zod.int().nullable(),
+  "lessonTitle": zod.string().nullable(),
+  "title": zod.string().describe('Topic, or the course title when none was given'),
+  "notes": zod.string().nullable(),
+  "meetingUrl": zod.string().nullable().describe('Only for enrolled students, the instructor and admins'),
+  "platform": zod.enum(['teams', 'meet', 'zoom', 'other']),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "durationMinutes": zod.int(),
+  "seriesId": zod.string().nullable().describe('Shared by sessions created together as a weekly series'),
+  "canJoin": zod.boolean().describe('The current user may open the meeting link')
+})
+export const ListCourseSessionsResponse = zod.array(ListCourseSessionsResponseItem)
+
+
+/**
+ * @summary Schedule a session, or a weekly series of sessions (instructor or admin)
+ */
+
+
+
+export const CreateCourseSessionsParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const createCourseSessionsBodyTitleMax = 200;
+
+export const createCourseSessionsBodyNotesMax = 2000;
+
+export const createCourseSessionsBodyMeetingUrlMax = 2000;
+
+export const createCourseSessionsBodyDurationMinutesMin = 15;
+export const createCourseSessionsBodyDurationMinutesMax = 480;
+
+export const createCourseSessionsBodyRepeatWeeksMax = 26;
+
+
+
+export const CreateCourseSessionsBody = zod.object({
+  "title": zod.string().max(createCourseSessionsBodyTitleMax).optional(),
+  "notes": zod.string().max(createCourseSessionsBodyNotesMax).optional(),
+  "meetingUrl": zod.string().min(1).max(createCourseSessionsBodyMeetingUrlMax),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "durationMinutes": zod.int().min(createCourseSessionsBodyDurationMinutesMin).max(createCourseSessionsBodyDurationMinutesMax),
+  "lessonId": zod.int().nullish(),
+  "repeatWeeks": zod.int().min(1).max(createCourseSessionsBodyRepeatWeeksMax).optional().describe('Total number of weekly sessions to create (1 = a single session)')
+})
+
+export const CreateCourseSessionsResponseItem = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "courseTitle": zod.string(),
+  "lessonId": zod.int().nullable(),
+  "lessonTitle": zod.string().nullable(),
+  "title": zod.string().describe('Topic, or the course title when none was given'),
+  "notes": zod.string().nullable(),
+  "meetingUrl": zod.string().nullable().describe('Only for enrolled students, the instructor and admins'),
+  "platform": zod.enum(['teams', 'meet', 'zoom', 'other']),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "durationMinutes": zod.int(),
+  "seriesId": zod.string().nullable().describe('Shared by sessions created together as a weekly series'),
+  "canJoin": zod.boolean().describe('The current user may open the meeting link')
+})
+export const CreateCourseSessionsResponse = zod.array(CreateCourseSessionsResponseItem)
+
+
+/**
+ * Students see their enrolled courses, lecturers the courses they teach, admins all courses.
+ * @summary Next sessions across the current user's courses (for dashboards)
+ */
+export const listUpcomingSessionsQueryLimitDefault = 5;
+export const listUpcomingSessionsQueryLimitMax = 50;
+
+
+
+export const ListUpcomingSessionsQueryParams = zod.object({
+  "limit": zod.coerce.number().int().min(1).max(listUpcomingSessionsQueryLimitMax).default(listUpcomingSessionsQueryLimitDefault)
+})
+
+export const ListUpcomingSessionsResponseItem = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "courseTitle": zod.string(),
+  "lessonId": zod.int().nullable(),
+  "lessonTitle": zod.string().nullable(),
+  "title": zod.string().describe('Topic, or the course title when none was given'),
+  "notes": zod.string().nullable(),
+  "meetingUrl": zod.string().nullable().describe('Only for enrolled students, the instructor and admins'),
+  "platform": zod.enum(['teams', 'meet', 'zoom', 'other']),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "durationMinutes": zod.int(),
+  "seriesId": zod.string().nullable().describe('Shared by sessions created together as a weekly series'),
+  "canJoin": zod.boolean().describe('The current user may open the meeting link')
+})
+export const ListUpcomingSessionsResponse = zod.array(ListUpcomingSessionsResponseItem)
+
+
+/**
+ * @summary Edit one session (instructor or admin)
+ */
+
+
+
+export const UpdateCourseSessionParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateCourseSessionBodyTitleMax = 200;
+
+export const updateCourseSessionBodyNotesMax = 2000;
+
+export const updateCourseSessionBodyMeetingUrlMax = 2000;
+
+export const updateCourseSessionBodyDurationMinutesMin = 15;
+export const updateCourseSessionBodyDurationMinutesMax = 480;
+
+
+
+export const UpdateCourseSessionBody = zod.object({
+  "title": zod.string().max(updateCourseSessionBodyTitleMax).optional(),
+  "notes": zod.string().max(updateCourseSessionBodyNotesMax).optional(),
+  "meetingUrl": zod.string().min(1).max(updateCourseSessionBodyMeetingUrlMax).optional(),
+  "startsAt": zod.iso.datetime({"offset":true}).optional(),
+  "durationMinutes": zod.int().min(updateCourseSessionBodyDurationMinutesMin).max(updateCourseSessionBodyDurationMinutesMax).optional(),
+  "lessonId": zod.int().nullish()
+})
+
+export const UpdateCourseSessionResponse = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "courseTitle": zod.string(),
+  "lessonId": zod.int().nullable(),
+  "lessonTitle": zod.string().nullable(),
+  "title": zod.string().describe('Topic, or the course title when none was given'),
+  "notes": zod.string().nullable(),
+  "meetingUrl": zod.string().nullable().describe('Only for enrolled students, the instructor and admins'),
+  "platform": zod.enum(['teams', 'meet', 'zoom', 'other']),
+  "startsAt": zod.iso.datetime({"offset":true}),
+  "endsAt": zod.iso.datetime({"offset":true}),
+  "durationMinutes": zod.int(),
+  "seriesId": zod.string().nullable().describe('Shared by sessions created together as a weekly series'),
+  "canJoin": zod.boolean().describe('The current user may open the meeting link')
+})
+
+
+/**
+ * @summary Cancel a session, or it and every later session of its weekly series (instructor or admin)
+ */
+
+
+
+export const DeleteCourseSessionParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DeleteCourseSessionQueryParams = zod.object({
+  "scope": zod.enum(['single', 'following']).optional()
+})
+
+export const DeleteCourseSessionResponse = zod.object({
+  "deleted": zod.int(),
+  "message": zod.string()
+})
+
+
+/**
  * @summary List materials of a course (enrolled, instructor or admin)
  */
 

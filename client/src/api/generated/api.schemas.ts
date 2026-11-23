@@ -698,6 +698,105 @@ export interface QuizAttemptResult {
   completion: LessonCompletionResult | null;
 }
 
+export type MeetingPlatform = typeof MeetingPlatform[keyof typeof MeetingPlatform];
+
+
+export const MeetingPlatform = {
+  teams: 'teams',
+  meet: 'meet',
+  zoom: 'zoom',
+  other: 'other',
+} as const;
+
+export interface ClassSession {
+  id: number;
+  courseId: number;
+  courseTitle: string;
+  /** @nullable */
+  lessonId: number | null;
+  /** @nullable */
+  lessonTitle: string | null;
+  /** Topic, or the course title when none was given */
+  title: string;
+  /** @nullable */
+  notes: string | null;
+  /**
+     * Only for enrolled students, the instructor and admins
+     * @nullable
+     */
+  meetingUrl: string | null;
+  platform: MeetingPlatform;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+  /**
+     * Shared by sessions created together as a weekly series
+     * @nullable
+     */
+  seriesId: string | null;
+  /** The current user may open the meeting link */
+  canJoin: boolean;
+}
+
+export interface ClassSessionInput {
+  /** @maxLength 200 */
+  title?: string;
+  /** @maxLength 2000 */
+  notes?: string;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  meetingUrl: string;
+  startsAt: string;
+  /**
+     * @minimum 15
+     * @maximum 480
+     */
+  durationMinutes: number;
+  /** @nullable */
+  lessonId?: number | null;
+  /**
+     * Total number of weekly sessions to create (1 = a single session)
+     * @minimum 1
+     * @maximum 26
+     */
+  repeatWeeks?: number;
+}
+
+export interface ClassSessionUpdate {
+  /** @maxLength 200 */
+  title?: string;
+  /** @maxLength 2000 */
+  notes?: string;
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  meetingUrl?: string;
+  startsAt?: string;
+  /**
+     * @minimum 15
+     * @maximum 480
+     */
+  durationMinutes?: number;
+  /** @nullable */
+  lessonId?: number | null;
+}
+
+export type SessionDeleteScope = typeof SessionDeleteScope[keyof typeof SessionDeleteScope];
+
+
+export const SessionDeleteScope = {
+  single: 'single',
+  following: 'following',
+} as const;
+
+export interface SessionDeleteResult {
+  deleted: number;
+  message: string;
+}
+
 export interface MediaPreset {
   id: string;
   title: string;
@@ -776,6 +875,25 @@ export type ConflictResponse = ErrorResponse;
  * Rate limited
  */
 export type TooManyRequestsResponse = ErrorResponse;
+
+export type ListCourseSessionsParams = {
+  /** Only sessions ending at or after this time (ISO 8601) */
+  from?: string;
+  /** Only sessions starting before this time (ISO 8601) */
+  to?: string;
+};
+
+export type ListUpcomingSessionsParams = {
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+};
+
+export type DeleteCourseSessionParams = {
+  scope?: SessionDeleteScope;
+};
 
 export type ListMySubmissionsParams = {
   status?: SubmissionStatus;

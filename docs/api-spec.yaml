@@ -26,6 +26,8 @@ tags:
     description: File upload and media presets
   - name: studio
     description: Course sections, lessons, quizzes and learner progress
+  - name: schedule
+    description: Live class sessions (Teams / Google Meet / Zoom) of a course
 security:
   - bearerAuth: []
 paths:
@@ -685,6 +687,115 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/XapiEvent" }
+
+  # ---------------------------------------------------------------- SCHEDULE (live class sessions)
+  /lms/courses/{id}/sessions:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: listCourseSessions
+      tags: [schedule]
+      summary: Live sessions of a course, ordered by start time
+      description: |
+        meetingUrl is only returned to enrolled students, the course instructor and admins;
+        other viewers of an open course get null.
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: Only sessions ending at or after this time (ISO 8601)
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          description: Only sessions starting before this time (ISO 8601)
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClassSession" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createCourseSessions
+      tags: [schedule]
+      summary: Schedule a session, or a weekly series of sessions (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClassSessionInput" }
+      responses:
+        "201":
+          description: Created sessions (one per week when repeating)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClassSession" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/sessions/upcoming:
+    get:
+      operationId: listUpcomingSessions
+      tags: [schedule]
+      summary: Next sessions across the current user's courses (for dashboards)
+      description: Students see their enrolled courses, lecturers the courses they teach, admins all courses.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 5 }
+      responses:
+        "200":
+          description: Upcoming and ongoing sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClassSession" }
+  /lms/sessions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    patch:
+      operationId: updateCourseSession
+      tags: [schedule]
+      summary: Edit one session (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClassSessionUpdate" }
+      responses:
+        "200":
+          description: Updated session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClassSession" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: deleteCourseSession
+      tags: [schedule]
+      summary: Cancel a session, or it and every later session of its weekly series (instructor or admin)
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/SessionDeleteScope" }
+      responses:
+        "200":
+          description: Number of cancelled sessions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionDeleteResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
   # ---------------------------------------------------------------- MATERIALS
   /lms/courses/{id}/materials:
@@ -1571,6 +1682,62 @@ components:
           oneOf:
             - $ref: "#/components/schemas/LessonCompletionResult"
             - type: "null"
+
+    # ------------------------------------------------ schedule
+    MeetingPlatform:
+      type: string
+      enum: [teams, meet, zoom, other]
+    ClassSession:
+      type: object
+      required: [id, courseId, courseTitle, lessonId, lessonTitle, title, notes, meetingUrl, platform, startsAt, endsAt, durationMinutes, seriesId, canJoin]
+      properties:
+        id: { type: integer }
+        courseId: { type: integer }
+        courseTitle: { type: string }
+        lessonId: { type: [integer, "null"] }
+        lessonTitle: { type: [string, "null"] }
+        title: { type: string, description: "Topic, or the course title when none was given" }
+        notes: { type: [string, "null"] }
+        meetingUrl: { type: [string, "null"], description: "Only for enrolled students, the instructor and admins" }
+        platform: { $ref: "#/components/schemas/MeetingPlatform" }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        durationMinutes: { type: integer }
+        seriesId: { type: [string, "null"], description: "Shared by sessions created together as a weekly series" }
+        canJoin: { type: boolean, description: "The current user may open the meeting link" }
+    ClassSessionInput:
+      type: object
+      required: [meetingUrl, startsAt, durationMinutes]
+      properties:
+        title: { type: string, maxLength: 200 }
+        notes: { type: string, maxLength: 2000 }
+        meetingUrl: { type: string, minLength: 1, maxLength: 2000 }
+        startsAt: { type: string, format: date-time }
+        durationMinutes: { type: integer, minimum: 15, maximum: 480 }
+        lessonId: { type: [integer, "null"] }
+        repeatWeeks:
+          type: integer
+          minimum: 1
+          maximum: 26
+          description: "Total number of weekly sessions to create (1 = a single session)"
+    ClassSessionUpdate:
+      type: object
+      properties:
+        title: { type: string, maxLength: 200 }
+        notes: { type: string, maxLength: 2000 }
+        meetingUrl: { type: string, minLength: 1, maxLength: 2000 }
+        startsAt: { type: string, format: date-time }
+        durationMinutes: { type: integer, minimum: 15, maximum: 480 }
+        lessonId: { type: [integer, "null"] }
+    SessionDeleteScope:
+      type: string
+      enum: [single, following]
+    SessionDeleteResult:
+      type: object
+      required: [deleted, message]
+      properties:
+        deleted: { type: integer }
+        message: { type: string }
 
     # ------------------------------------------------ upload
     MediaPreset:

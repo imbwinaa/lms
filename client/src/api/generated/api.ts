@@ -43,6 +43,9 @@ import type {
   AuthUser,
   BadRequestResponse,
   Certificate,
+  ClassSession,
+  ClassSessionInput,
+  ClassSessionUpdate,
   ConflictResponse,
   Course,
   CourseInput,
@@ -50,6 +53,7 @@ import type {
   CourseSection,
   CourseUpdate,
   DashboardSummary,
+  DeleteCourseSessionParams,
   DemoLoginInput,
   DownloadResult,
   EnrollmentInput,
@@ -67,7 +71,9 @@ import type {
   LessonCompletionResult,
   LessonInput,
   LessonUpdate,
+  ListCourseSessionsParams,
   ListMySubmissionsParams,
+  ListUpcomingSessionsParams,
   LoginInput,
   Material,
   MaterialInput,
@@ -79,6 +85,7 @@ import type {
   QuizAttemptResult,
   QuizQuestionsInput,
   SectionInput,
+  SessionDeleteResult,
   Submission,
   SubmissionInput,
   TooManyRequestsResponse,
@@ -3437,6 +3444,488 @@ export const useRecordXapiEvent = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRecordXapiEventMutationOptions(options), queryClient);
+    }
+
+export const getListCourseSessionsUrl = (id: number,
+    params?: ListCourseSessionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/lms/courses/${id}/sessions?${stringifiedParams}` : `/api/lms/courses/${id}/sessions`
+}
+
+/**
+ * meetingUrl is only returned to enrolled students, the course instructor and admins;
+ * other viewers of an open course get null.
+ * @summary Live sessions of a course, ordered by start time
+ */
+export const listCourseSessions = async (id: number,
+    params?: ListCourseSessionsParams, options?: Parameters<typeof customFetch>[1]): Promise<ClassSession[]> => {
+
+  return customFetch<ClassSession[]>(getListCourseSessionsUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCourseSessionsQueryKey = (id: number,
+    params?: ListCourseSessionsParams,) => {
+    return [
+    `/api/lms/courses/${id}/sessions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCourseSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listCourseSessions>>, TError = ErrorType<NotFoundResponse>>(id: number,
+    params?: ListCourseSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCourseSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCourseSessionsQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCourseSessions>>> = ({ signal }) => listCourseSessions(id,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCourseSessions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListCourseSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listCourseSessions>>>
+export type ListCourseSessionsQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * meetingUrl is only returned to enrolled students, the course instructor and admins;
+ * other viewers of an open course get null.
+ * @summary Live sessions of a course, ordered by start time
+ */
+export function useListCourseSessions<TData = Awaited<ReturnType<typeof listCourseSessions>>, TError = ErrorType<NotFoundResponse>>(
+ id: number,
+    params: undefined |  ListCourseSessionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCourseSessions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCourseSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listCourseSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * meetingUrl is only returned to enrolled students, the course instructor and admins;
+ * other viewers of an open course get null.
+ * @summary Live sessions of a course, ordered by start time
+ */
+export function useListCourseSessions<TData = Awaited<ReturnType<typeof listCourseSessions>>, TError = ErrorType<NotFoundResponse>>(
+ id: number,
+    params?: ListCourseSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCourseSessions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCourseSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listCourseSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * meetingUrl is only returned to enrolled students, the course instructor and admins;
+ * other viewers of an open course get null.
+ * @summary Live sessions of a course, ordered by start time
+ */
+export function useListCourseSessions<TData = Awaited<ReturnType<typeof listCourseSessions>>, TError = ErrorType<NotFoundResponse>>(
+ id: number,
+    params?: ListCourseSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCourseSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * meetingUrl is only returned to enrolled students, the course instructor and admins;
+ * other viewers of an open course get null.
+ * @summary Live sessions of a course, ordered by start time
+ */
+export function useListCourseSessions<TData = Awaited<ReturnType<typeof listCourseSessions>>, TError = ErrorType<NotFoundResponse>>(
+ id: number,
+    params?: ListCourseSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCourseSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListCourseSessionsQueryOptions(id,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCourseSessionsUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/courses/${id}/sessions`
+}
+
+/**
+ * @summary Schedule a session, or a weekly series of sessions (instructor or admin)
+ */
+export const createCourseSessions = async (id: number,
+    classSessionInput: ClassSessionInput, options?: Parameters<typeof customFetch>[1]): Promise<ClassSession[]> => {
+
+  return customFetch<ClassSession[]>(getCreateCourseSessionsUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(classSessionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCourseSessionsMutationKey = () => ['createCourseSessions'] as const;
+
+export const getCreateCourseSessionsMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCourseSessions>>, TError,CreateCourseSessionsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCourseSessions>>, TError,CreateCourseSessionsMutationVariables, TContext> => {
+
+const mutationKey = getCreateCourseSessionsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCourseSessions>>, CreateCourseSessionsMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createCourseSessions(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCourseSessionsMutationResult = NonNullable<Awaited<ReturnType<typeof createCourseSessions>>>
+    export type CreateCourseSessionsMutationBody = BodyType<ClassSessionInput>
+    export type CreateCourseSessionsMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type CreateCourseSessionsMutationVariables = {id: number;data: BodyType<ClassSessionInput>}
+
+    /** @summary Schedule a session, or a weekly series of sessions (instructor or admin) */
+export const useCreateCourseSessions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCourseSessions>>, TError,CreateCourseSessionsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createCourseSessions>>,
+        TError,
+        CreateCourseSessionsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCourseSessionsMutationOptions(options), queryClient);
+    }
+
+export const getListUpcomingSessionsUrl = (params?: ListUpcomingSessionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/lms/sessions/upcoming?${stringifiedParams}` : `/api/lms/sessions/upcoming`
+}
+
+/**
+ * Students see their enrolled courses, lecturers the courses they teach, admins all courses.
+ * @summary Next sessions across the current user's courses (for dashboards)
+ */
+export const listUpcomingSessions = async (params?: ListUpcomingSessionsParams, options?: Parameters<typeof customFetch>[1]): Promise<ClassSession[]> => {
+
+  return customFetch<ClassSession[]>(getListUpcomingSessionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUpcomingSessionsQueryKey = (params?: ListUpcomingSessionsParams,) => {
+    return [
+    `/api/lms/sessions/upcoming`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListUpcomingSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listUpcomingSessions>>, TError = ErrorType<unknown>>(params?: ListUpcomingSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUpcomingSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUpcomingSessionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUpcomingSessions>>> = ({ signal }) => listUpcomingSessions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUpcomingSessions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListUpcomingSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listUpcomingSessions>>>
+export type ListUpcomingSessionsQueryError = ErrorType<unknown>
+
+
+/**
+ * Students see their enrolled courses, lecturers the courses they teach, admins all courses.
+ * @summary Next sessions across the current user's courses (for dashboards)
+ */
+export function useListUpcomingSessions<TData = Awaited<ReturnType<typeof listUpcomingSessions>>, TError = ErrorType<unknown>>(
+ params: undefined |  ListUpcomingSessionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUpcomingSessions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUpcomingSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listUpcomingSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * Students see their enrolled courses, lecturers the courses they teach, admins all courses.
+ * @summary Next sessions across the current user's courses (for dashboards)
+ */
+export function useListUpcomingSessions<TData = Awaited<ReturnType<typeof listUpcomingSessions>>, TError = ErrorType<unknown>>(
+ params?: ListUpcomingSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUpcomingSessions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUpcomingSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listUpcomingSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * Students see their enrolled courses, lecturers the courses they teach, admins all courses.
+ * @summary Next sessions across the current user's courses (for dashboards)
+ */
+export function useListUpcomingSessions<TData = Awaited<ReturnType<typeof listUpcomingSessions>>, TError = ErrorType<unknown>>(
+ params?: ListUpcomingSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUpcomingSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * Students see their enrolled courses, lecturers the courses they teach, admins all courses.
+ * @summary Next sessions across the current user's courses (for dashboards)
+ */
+export function useListUpcomingSessions<TData = Awaited<ReturnType<typeof listUpcomingSessions>>, TError = ErrorType<unknown>>(
+ params?: ListUpcomingSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUpcomingSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListUpcomingSessionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateCourseSessionUrl = (id: number,) => {
+
+
+
+
+  return `/api/lms/sessions/${id}`
+}
+
+/**
+ * @summary Edit one session (instructor or admin)
+ */
+export const updateCourseSession = async (id: number,
+    classSessionUpdate: ClassSessionUpdate, options?: Parameters<typeof customFetch>[1]): Promise<ClassSession> => {
+
+  return customFetch<ClassSession>(getUpdateCourseSessionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(classSessionUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateCourseSessionMutationKey = () => ['updateCourseSession'] as const;
+
+export const getUpdateCourseSessionMutationOptions = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCourseSession>>, TError,UpdateCourseSessionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCourseSession>>, TError,UpdateCourseSessionMutationVariables, TContext> => {
+
+const mutationKey = getUpdateCourseSessionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCourseSession>>, UpdateCourseSessionMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCourseSession(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCourseSessionMutationResult = NonNullable<Awaited<ReturnType<typeof updateCourseSession>>>
+    export type UpdateCourseSessionMutationBody = BodyType<ClassSessionUpdate>
+    export type UpdateCourseSessionMutationError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>
+    export type UpdateCourseSessionMutationVariables = {id: number;data: BodyType<ClassSessionUpdate>}
+
+    /** @summary Edit one session (instructor or admin) */
+export const useUpdateCourseSession = <TError = ErrorType<BadRequestResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCourseSession>>, TError,UpdateCourseSessionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateCourseSession>>,
+        TError,
+        UpdateCourseSessionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateCourseSessionMutationOptions(options), queryClient);
+    }
+
+export const getDeleteCourseSessionUrl = (id: number,
+    params?: DeleteCourseSessionParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/lms/sessions/${id}?${stringifiedParams}` : `/api/lms/sessions/${id}`
+}
+
+/**
+ * @summary Cancel a session, or it and every later session of its weekly series (instructor or admin)
+ */
+export const deleteCourseSession = async (id: number,
+    params?: DeleteCourseSessionParams, options?: Parameters<typeof customFetch>[1]): Promise<SessionDeleteResult> => {
+
+  return customFetch<SessionDeleteResult>(getDeleteCourseSessionUrl(id,params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCourseSessionMutationKey = () => ['deleteCourseSession'] as const;
+
+export const getDeleteCourseSessionMutationOptions = <TError = ErrorType<ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCourseSession>>, TError,DeleteCourseSessionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCourseSession>>, TError,DeleteCourseSessionMutationVariables, TContext> => {
+
+const mutationKey = getDeleteCourseSessionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCourseSession>>, DeleteCourseSessionMutationVariables> = (props) => {
+          const {id,params} = props ?? {};
+
+          return  deleteCourseSession(id,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCourseSessionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCourseSession>>>
+
+    export type DeleteCourseSessionMutationError = ErrorType<ForbiddenResponse | NotFoundResponse>
+    export type DeleteCourseSessionMutationVariables = {id: number;params?: DeleteCourseSessionParams}
+
+    /** @summary Cancel a session, or it and every later session of its weekly series (instructor or admin) */
+export const useDeleteCourseSession = <TError = ErrorType<ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCourseSession>>, TError,DeleteCourseSessionMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCourseSession>>,
+        TError,
+        DeleteCourseSessionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteCourseSessionMutationOptions(options), queryClient);
     }
 
 export const getListCourseMaterialsUrl = (id: number,) => {

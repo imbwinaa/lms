@@ -6,6 +6,7 @@ import lmsRouter from "./lms";
 import accountsRouter from "./accounts";
 import contentRouter from "./content";
 import studioRouter from "./studio";
+import sessionsRouter from "./sessions";
 import { authenticate } from "../middlewares/auth";
 import { notFoundHandler } from "../lib/http";
 
@@ -22,6 +23,7 @@ router.use(lmsRouter);
 router.use(accountsRouter);
 router.use(contentRouter);
 router.use(studioRouter);
+router.use(sessionsRouter);
 router.use(notFoundHandler);
 
 export default router;

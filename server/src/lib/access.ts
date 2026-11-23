@@ -61,3 +61,9 @@ export async function findAssignment(assignmentId: number): Promise<LmsAssignmen
   if (!assignment) throw notFound("Không tìm thấy bài tập.");
   return assignment;
 }
+
+/** Xem được khóa học: admin/giảng viên; học viên khi khóa đang mở hoặc đã ghi danh */
+export async function canViewCourse(user: AuthUser, course: Pick<LmsCourse, "id" | "status">): Promise<boolean> {
+  if (user.role !== "student") return true;
+  return course.status === "Đang hoạt động" || (await isEnrolled(user.id, course.id));
+}

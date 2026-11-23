@@ -8,6 +8,7 @@ import {
   real,
   serial,
   text,
+  timestamp,
   uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -361,3 +362,33 @@ export const lmsLessonCompletionsTable = pgTable(
 export type LmsCourseSection = typeof lmsCourseSectionsTable.$inferSelect;
 export type LmsLesson = typeof lmsLessonsTable.$inferSelect;
 export type LmsQuizQuestion = typeof lmsQuizQuestionsTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Lịch học: buổi học trực tuyến (Teams / Google Meet / Zoom) của khóa học
+// ---------------------------------------------------------------------------
+export const lmsClassSessionsTable = pgTable(
+  "lms_class_sessions",
+  {
+    id: serial("id").primaryKey(),
+    courseId: integer("course_id")
+      .notNull()
+      .references(() => lmsCoursesTable.id, { onDelete: "cascade" }),
+    lessonId: integer("lesson_id").references(() => lmsLessonsTable.id, { onDelete: "set null" }),
+    title: text("title"),
+    notes: text("notes"),
+    meetingUrl: text("meeting_url").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    durationMinutes: integer("duration_minutes").notNull().default(60),
+    // Các buổi tạo cùng lúc theo lịch lặp hằng tuần dùng chung seriesId
+    seriesId: text("series_id"),
+    createdBy: integer("created_by").references(() => lmsLearnersTable.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("lms_class_sessions_course_start_idx").on(t.courseId, t.startsAt),
+    index("lms_class_sessions_series_idx").on(t.seriesId),
+  ],
+);
+
+export type LmsClassSession = typeof lmsClassSessionsTable.$inferSelect;
