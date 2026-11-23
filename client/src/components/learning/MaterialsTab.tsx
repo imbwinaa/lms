@@ -31,6 +31,8 @@ import { QueryState } from '@/components/common';
 import { notify } from '@/lib/toast';
 import { CreateMaterialDialog } from '@/components/dialogs/CreateMaterialDialog';
 import { useRole } from '@/contexts/RoleContext';
+import { FilePreviewDialog, type PreviewFile } from '@/components/preview/FilePreviewDialog';
+import { canPreview } from '@/components/preview/fileKind';
 
 export interface MaterialsTabProps {
   courseId: number;
@@ -52,6 +54,7 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
   const [filterType, setFilterType] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [preview, setPreview] = useState<PreviewFile | null>(null);
 
   const filtered = useMemo(() => {
     return materials.filter(m => {
@@ -233,6 +236,16 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  {m.type !== 'link' && canPreview(m.fileUrl, m.fileName) && (
+                    <Button
+                      size="sm"
+                      onClick={() => setPreview({ url: m.fileUrl, name: m.fileName })}
+                      className="h-8 gap-1.5 text-xs font-semibold"
+                    >
+                      <Eye size={13} />
+                      <span>Xem</span>
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -269,6 +282,7 @@ export function MaterialsTab({ courseId }: MaterialsTabProps) {
         courseId={courseId}
         onClose={() => setDialogOpen(false)}
       />
+      <FilePreviewDialog file={preview} onClose={() => setPreview(null)} />
     </div>
   );
 }

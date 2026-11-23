@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { FileText, CheckCircle2, Download } from 'lucide-react';
+import { FileText, CheckCircle2, Download, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,6 +15,7 @@ import {
   type Assignment,
   type Submission,
 } from '@/api';
+import { PreviewLink } from '@/components/preview/FilePreviewDialog';
 
 export interface GradeSubmissionDialogProps {
   open: boolean;
@@ -98,14 +99,24 @@ export function GradeSubmissionDialog({
                   <span className="font-medium text-foreground">{submission.fileName}</span>
                   {submission.fileSize && <span className="text-[11px] text-muted-foreground">({submission.fileSize})</span>}
                 </div>
-                <a
-                  href={submission.fileUrl || '#'}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
-                >
-                  <Download size={12} /> Tải bài
-                </a>
+                {submission.fileUrl && (
+                  <div className="flex shrink-0 items-center gap-3">
+                    <PreviewLink
+                      url={submission.fileUrl}
+                      name={submission.fileName}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                    >
+                      <Eye size={12} /> Xem bài
+                    </PreviewLink>
+                    <a
+                      href={submission.fileUrl}
+                      download={submission.fileName}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                    >
+                      <Download size={12} /> Tải bài
+                    </a>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="italic text-muted-foreground">Học viên không gửi tệp đính kèm.</p>

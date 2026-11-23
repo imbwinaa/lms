@@ -32,6 +32,7 @@ const ALLOWED_EXTENSIONS: Record<string, "video" | "audio" | "document" | "scorm
   ".xls": "document",
   ".xlsx": "document",
   ".txt": "document",
+  ".csv": "document",
   ".png": "document",
   ".jpg": "document",
   ".jpeg": "document",
