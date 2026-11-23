@@ -1,7 +1,7 @@
 import { Router } from "express";
 import fs from "fs";
 import path from "path";
-import { isR2Configured, uploadFileToR2, getR2ObjectStream } from "../lib/r2";
+import { IMMUTABLE_CACHE, isR2Configured, uploadFileToR2, getR2ObjectStream } from "../lib/r2";
 import { badRequest, notFound, parseOr400 } from "../lib/http";
 import { authenticate, requireRole } from "../middlewares/auth";
 import { UploadFileBody } from "../schemas";
@@ -111,15 +111,36 @@ function formatSize(bytes: number): string {
 
 // Proxy stream từ R2 (công khai: URL được nhúng trực tiếp vào <video>/<a>)
 uploadRouter.get("/r2/:key", async (req, res) => {
+  const range = typeof req.headers.range === "string" && /^bytes=\d*-\d*$/.test(req.headers.range) ? req.headers.range : undefined;
+  let object: Awaited<ReturnType<typeof getR2ObjectStream>>;
   try {
-    const object = await getR2ObjectStream(String(req.params.key));
-    if (object.ContentType) res.setHeader("Content-Type", object.ContentType);
-    if (object.ContentLength) res.setHeader("Content-Length", object.ContentLength);
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    (object.Body as NodeJS.ReadableStream | undefined)?.pipe(res);
-  } catch {
+    object = await getR2ObjectStream(String(req.params.key), range);
+  } catch (err) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+    if (status === 416) {
+      res.status(416).end();
+      return;
+    }
     res.status(404).json({ message: "Không tìm thấy file trên Cloudflare R2." });
+    return;
   }
+  if (object.ContentRange) {
+    res.status(206);
+    res.setHeader("Content-Range", object.ContentRange);
+  }
+  if (object.ContentType) res.setHeader("Content-Type", object.ContentType);
+  if (object.ContentLength !== undefined) res.setHeader("Content-Length", object.ContentLength);
+  if (object.ETag) res.setHeader("ETag", object.ETag);
+  res.setHeader("Accept-Ranges", "bytes");
+  res.setHeader("Cache-Control", IMMUTABLE_CACHE);
+  const body = object.Body as NodeJS.ReadableStream | undefined;
+  if (!body) {
+    res.end();
+    return;
+  }
+  // Người xem đóng tab / tua đi chỗ khác -> dừng tải từ R2
+  res.on("close", () => (body as unknown as { destroy?: () => void }).destroy?.());
+  body.pipe(res);
 });
 
 // Các endpoint còn lại yêu cầu đăng nhập
