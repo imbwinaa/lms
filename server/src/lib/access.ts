@@ -62,8 +62,20 @@ export async function findAssignment(assignmentId: number): Promise<LmsAssignmen
   return assignment;
 }
 
-/** Xem được khóa học: admin/giảng viên; học viên khi khóa đang mở hoặc đã ghi danh */
-export async function canViewCourse(user: AuthUser, course: Pick<LmsCourse, "id" | "status">): Promise<boolean> {
+/** Khóa học công khai, đang hoạt động: mọi học viên thấy trong danh mục */
+export function isListedForStudents(course: Pick<LmsCourse, "status" | "visibility">): boolean {
+  return course.status === "Đang hoạt động" && course.visibility !== "private";
+}
+
+/**
+ * Xem được trang khóa học (giới thiệu, đề cương, giờ học):
+ * admin/giảng viên; học viên đã ghi danh; học viên khác chỉ với khóa công khai đang hoạt động.
+ * Nội dung bài học, tài liệu, bài tập và liên kết họp luôn yêu cầu đã ghi danh.
+ */
+export async function canViewCourse(
+  user: AuthUser,
+  course: Pick<LmsCourse, "id" | "status" | "visibility">,
+): Promise<boolean> {
   if (user.role !== "student") return true;
-  return course.status === "Đang hoạt động" || (await isEnrolled(user.id, course.id));
+  return isListedForStudents(course) || (await isEnrolled(user.id, course.id));
 }

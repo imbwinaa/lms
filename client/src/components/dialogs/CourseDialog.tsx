@@ -2,10 +2,12 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getErrorMessage, invalidateLms, useCreateLmsCourse, useUpdateLmsCourse } from '@/api';
-import type { Course, CourseInput, MediaType } from '@/api';
+import type { Course, CourseInput, CourseVisibility, EnrollmentMethod } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Notice, Field, MediaUploader } from '@/components/common';
+import { Globe2, Lock, UserCheck, Users } from 'lucide-react';
+import { Notice, Field } from '@/components/common';
+import { cn } from '@/lib/utils';
 import { notify } from '@/lib/toast';
 
 export type CourseDialogProps = {
@@ -20,9 +22,8 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
   const update = useUpdateLmsCourse();
   const [feedback, setFeedback] = useState('');
   const [err, setErr] = useState(false);
-  const [mediaUrl, setMediaUrl] = useState('');
-  const [mediaType, setMediaType] = useState<MediaType>('video');
-  const [mediaTitle, setMediaTitle] = useState('');
+  const [visibility, setVisibility] = useState<CourseVisibility>('public');
+  const [enrollmentMethod, setEnrollmentMethod] = useState<EnrollmentMethod>('open');
   const [form, setForm] = useState<CourseInput>({
     title: '',
     description: '',
@@ -34,15 +35,8 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
 
   useEffect(() => {
     if (open) {
-      if (course) {
-        setMediaUrl(course.mediaUrl || '');
-        setMediaType((course.mediaType as MediaType | null) || 'video');
-        setMediaTitle('');
-      } else {
-        setMediaUrl('');
-        setMediaType('video');
-        setMediaTitle('');
-      }
+      setVisibility(course?.visibility ?? 'public');
+      setEnrollmentMethod(course?.enrollmentMethod ?? 'open');
       setForm(
         course
           ? {
@@ -83,11 +77,7 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
       setErr(true);
       setFeedback(getErrorMessage(error, 'Chưa thể lưu khóa học. Vui lòng kiểm tra lại.'));
     };
-    const payload: CourseInput = {
-      ...form,
-      mediaUrl: mediaUrl || null,
-      mediaType,
-    };
+    const payload: CourseInput = { ...form, visibility, enrollmentMethod };
     if (course) update.mutate({ id: course.id, data: payload }, { onSuccess, onError });
     else create.mutate({ data: payload }, { onSuccess, onError });
   };
@@ -167,24 +157,48 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
             </Field>
           </div>
 
-          <div className="space-y-1.5 pt-1">
-            <label className="text-xs font-semibold">Tải lên học liệu đa phương tiện (Video, Audio, SCORM, Slide)</label>
-            <MediaUploader
-              value={mediaUrl}
-              mediaType={mediaType}
-              fileName={mediaTitle}
-              onChange={(url, type, title) => {
-                setMediaUrl(url);
-                setMediaType(type);
-                setMediaTitle(title);
-              }}
-              onRemove={() => {
-                setMediaUrl('');
-                setMediaType('video');
-                setMediaTitle('');
-              }}
-            />
-          </div>
+          <Field label="Hiển thị">
+            <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Hiển thị">
+              <ChoiceCard
+                selected={visibility === 'public'}
+                onSelect={() => setVisibility('public')}
+                icon={<Globe2 className="size-4" />}
+                title="Công khai"
+                hint="Mọi học viên thấy khóa học trong danh mục"
+              />
+              <ChoiceCard
+                selected={visibility === 'private'}
+                onSelect={() => setVisibility('private')}
+                icon={<Lock className="size-4" />}
+                title="Riêng tư"
+                hint="Chỉ học viên được mời hoặc được thêm"
+              />
+            </div>
+          </Field>
+          {visibility === 'public' ? (
+            <Field label="Cách ghi danh">
+              <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Cách ghi danh">
+                <ChoiceCard
+                  selected={enrollmentMethod === 'open'}
+                  onSelect={() => setEnrollmentMethod('open')}
+                  icon={<Users className="size-4" />}
+                  title="Tự do tham gia"
+                  hint="Học viên bấm tham gia là vào học ngay"
+                />
+                <ChoiceCard
+                  selected={enrollmentMethod === 'approval'}
+                  onSelect={() => setEnrollmentMethod('approval')}
+                  icon={<UserCheck className="size-4" />}
+                  title="Cần duyệt"
+                  hint="Giảng viên duyệt từng yêu cầu tham gia"
+                />
+              </div>
+            </Field>
+          ) : (
+            <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+              Khóa riêng tư không nhận yêu cầu tham gia. Thêm học viên hoặc tạo liên kết mời trong tab <b>Học viên</b>.
+            </p>
+          )}
 
           <div className="flex justify-end gap-2 border-t border-border pt-4">
             <Button variant="outline" type="button" onClick={onClose}>
@@ -197,5 +211,38 @@ export function CourseDialog({ open, onClose, course }: CourseDialogProps) {
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ChoiceCard({
+  selected,
+  onSelect,
+  icon,
+  title,
+  hint,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  icon: React.ReactNode;
+  title: string;
+  hint: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        'flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors',
+        selected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-input hover:bg-muted/60'
+      )}
+    >
+      <span className={cn('mt-0.5', selected ? 'text-primary' : 'text-muted-foreground')}>{icon}</span>
+      <span>
+        <span className="block text-sm font-semibold">{title}</span>
+        <span className="block text-xs text-muted-foreground">{hint}</span>
+      </span>
+    </button>
   );
 }

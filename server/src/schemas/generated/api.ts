@@ -156,7 +156,10 @@ export const ListLmsCoursesResponseItem = zod.object({
   "instructorName": zod.string(),
   "mediaUrl": zod.string().nullable(),
   "mediaType": zod.string().nullable(),
-  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header')
+  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header'),
+  "visibility": zod.enum(['public', 'private']).describe('public: listed for every student; private: only enrolled students (invite-only)'),
+  "enrollmentMethod": zod.enum(['open', 'approval']).describe('How students join a public course: open (instantly) or approval (instructor approves)'),
+  "myEnrollment": zod.enum(['enrolled', 'pending', 'none']).describe('The current student\'s state in this course (staff: none)')
 })
 export const ListLmsCoursesResponse = zod.array(ListLmsCoursesResponseItem)
 
@@ -180,7 +183,9 @@ export const CreateLmsCourseBody = zod.object({
   "instructorId": zod.int().optional().describe('Admin only; ignored for lecturers'),
   "mediaUrl": zod.string().nullish(),
   "mediaType": zod.enum(['video', 'audio', 'document', 'scorm']).optional(),
-  "coverImageUrl": zod.string().nullish()
+  "coverImageUrl": zod.string().nullish(),
+  "visibility": zod.enum(['public', 'private']).optional().describe('public: listed for every student; private: only enrolled students (invite-only)'),
+  "enrollmentMethod": zod.enum(['open', 'approval']).optional().describe('How students join a public course: open (instantly) or approval (instructor approves)')
 })
 
 export const CreateLmsCourseResponse = zod.object({
@@ -200,7 +205,10 @@ export const CreateLmsCourseResponse = zod.object({
   "instructorName": zod.string(),
   "mediaUrl": zod.string().nullable(),
   "mediaType": zod.string().nullable(),
-  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header')
+  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header'),
+  "visibility": zod.enum(['public', 'private']).describe('public: listed for every student; private: only enrolled students (invite-only)'),
+  "enrollmentMethod": zod.enum(['open', 'approval']).describe('How students join a public course: open (instantly) or approval (instructor approves)'),
+  "myEnrollment": zod.enum(['enrolled', 'pending', 'none']).describe('The current student\'s state in this course (staff: none)')
 })
 
 
@@ -231,7 +239,10 @@ export const GetLmsCourseResponse = zod.object({
   "instructorName": zod.string(),
   "mediaUrl": zod.string().nullable(),
   "mediaType": zod.string().nullable(),
-  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header')
+  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header'),
+  "visibility": zod.enum(['public', 'private']).describe('public: listed for every student; private: only enrolled students (invite-only)'),
+  "enrollmentMethod": zod.enum(['open', 'approval']).describe('How students join a public course: open (instantly) or approval (instructor approves)'),
+  "myEnrollment": zod.enum(['enrolled', 'pending', 'none']).describe('The current student\'s state in this course (staff: none)')
 })
 
 
@@ -261,7 +272,9 @@ export const UpdateLmsCourseBody = zod.object({
   "instructorId": zod.int().optional().describe('Admin only'),
   "mediaUrl": zod.string().nullish(),
   "mediaType": zod.enum(['video', 'audio', 'document', 'scorm']).optional(),
-  "coverImageUrl": zod.string().nullish()
+  "coverImageUrl": zod.string().nullish(),
+  "visibility": zod.enum(['public', 'private']).optional().describe('public: listed for every student; private: only enrolled students (invite-only)'),
+  "enrollmentMethod": zod.enum(['open', 'approval']).optional().describe('How students join a public course: open (instantly) or approval (instructor approves)')
 })
 
 export const UpdateLmsCourseResponse = zod.object({
@@ -281,7 +294,10 @@ export const UpdateLmsCourseResponse = zod.object({
   "instructorName": zod.string(),
   "mediaUrl": zod.string().nullable(),
   "mediaType": zod.string().nullable(),
-  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header')
+  "coverImageUrl": zod.string().nullable().describe('16:9 cover used on cards and the course header'),
+  "visibility": zod.enum(['public', 'private']).describe('public: listed for every student; private: only enrolled students (invite-only)'),
+  "enrollmentMethod": zod.enum(['open', 'approval']).describe('How students join a public course: open (instantly) or approval (instructor approves)'),
+  "myEnrollment": zod.enum(['enrolled', 'pending', 'none']).describe('The current student\'s state in this course (staff: none)')
 })
 
 
@@ -296,6 +312,212 @@ export const DeleteLmsCourseParams = zod.object({
 })
 
 export const DeleteLmsCourseResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Join a public course (free to join) or ask to join (approval required)
+ */
+
+
+
+export const JoinCourseParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const joinCourseBodyMessageMax = 500;
+
+
+
+export const JoinCourseBody = zod.object({
+  "message": zod.string().max(joinCourseBodyMessageMax).optional().describe('Optional note to the instructor (approval courses)')
+})
+
+export const JoinCourseResponse = zod.object({
+  "courseId": zod.int(),
+  "status": zod.enum(['enrolled', 'pending', 'none']).describe('The current student\'s state in this course (staff: none)'),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Withdraw the current student's pending join request
+ */
+
+
+
+export const CancelJoinRequestParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const CancelJoinRequestResponse = zod.object({
+  "courseId": zod.int(),
+  "status": zod.enum(['enrolled', 'pending', 'none']).describe('The current student\'s state in this course (staff: none)'),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Pending join requests of a course (instructor or admin)
+ */
+
+
+
+export const ListEnrollmentRequestsParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const ListEnrollmentRequestsResponseItem = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "learnerId": zod.int(),
+  "learnerName": zod.string(),
+  "learnerEmail": zod.string(),
+  "learnerTeam": zod.string(),
+  "message": zod.string().nullable(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "createdAt": zod.iso.datetime({"offset":true})
+})
+export const ListEnrollmentRequestsResponse = zod.array(ListEnrollmentRequestsResponseItem)
+
+
+/**
+ * @summary Approve (enroll) or reject a join request (instructor or admin)
+ */
+
+
+
+export const DecideEnrollmentRequestParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DecideEnrollmentRequestBody = zod.object({
+  "decision": zod.enum(['approve', 'reject'])
+})
+
+export const DecideEnrollmentRequestResponse = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "learnerId": zod.int(),
+  "learnerName": zod.string(),
+  "learnerEmail": zod.string(),
+  "learnerTeam": zod.string(),
+  "message": zod.string().nullable(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "createdAt": zod.iso.datetime({"offset":true})
+})
+
+
+/**
+ * @summary Invite links of a course (instructor or admin)
+ */
+
+
+
+export const ListCourseInvitesParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const ListCourseInvitesResponseItem = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "token": zod.string().describe('Share as <app>/invite/<token>'),
+  "expiresAt": zod.iso.datetime({"offset":true}).nullable(),
+  "maxUses": zod.int().nullable(),
+  "uses": zod.int(),
+  "revoked": zod.boolean(),
+  "active": zod.boolean().describe('Not revoked, not expired and not used up'),
+  "createdAt": zod.iso.datetime({"offset":true})
+})
+export const ListCourseInvitesResponse = zod.array(ListCourseInvitesResponseItem)
+
+
+/**
+ * @summary Create an invite link with optional expiry and maximum uses (instructor or admin)
+ */
+
+
+
+export const CreateCourseInviteParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const createCourseInviteBodyMaxUsesMax = 1000;
+
+
+
+export const CreateCourseInviteBody = zod.object({
+  "expiresAt": zod.iso.datetime({"offset":true}).nullish().describe('Must be in the future; null = never'),
+  "maxUses": zod.int().min(1).max(createCourseInviteBodyMaxUsesMax).nullish().describe('null = unlimited')
+})
+
+export const CreateCourseInviteResponse = zod.object({
+  "id": zod.int(),
+  "courseId": zod.int(),
+  "token": zod.string().describe('Share as <app>/invite/<token>'),
+  "expiresAt": zod.iso.datetime({"offset":true}).nullable(),
+  "maxUses": zod.int().nullable(),
+  "uses": zod.int(),
+  "revoked": zod.boolean(),
+  "active": zod.boolean().describe('Not revoked, not expired and not used up'),
+  "createdAt": zod.iso.datetime({"offset":true})
+})
+
+
+/**
+ * @summary Revoke an invite link (instructor or admin)
+ */
+
+
+
+export const RevokeCourseInviteParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const RevokeCourseInviteResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Preview an invite link (signed-in user)
+ */
+export const getInviteLinkPathTokenMin = 16;
+export const getInviteLinkPathTokenMax = 64;
+
+
+
+export const GetInviteLinkParams = zod.object({
+  "token": zod.coerce.string().min(getInviteLinkPathTokenMin).max(getInviteLinkPathTokenMax)
+})
+
+export const GetInviteLinkResponse = zod.object({
+  "courseId": zod.int(),
+  "courseTitle": zod.string(),
+  "courseDescription": zod.string(),
+  "instructorName": zod.string(),
+  "valid": zod.boolean(),
+  "reason": zod.string().nullable().describe('Why the link can\'t be used'),
+  "alreadyEnrolled": zod.boolean()
+})
+
+
+/**
+ * @summary Join the course of an invite link (students)
+ */
+export const acceptInviteLinkPathTokenMin = 16;
+export const acceptInviteLinkPathTokenMax = 64;
+
+
+
+export const AcceptInviteLinkParams = zod.object({
+  "token": zod.coerce.string().min(acceptInviteLinkPathTokenMin).max(acceptInviteLinkPathTokenMax)
+})
+
+export const AcceptInviteLinkResponse = zod.object({
+  "courseId": zod.int(),
+  "status": zod.enum(['enrolled', 'pending', 'none']).describe('The current student\'s state in this course (staff: none)'),
   "message": zod.string()
 })
 

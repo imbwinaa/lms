@@ -12,7 +12,7 @@ import {
   type LmsLesson,
   type LmsQuizQuestion,
 } from "../db";
-import { canManageCourse, findCourse, isEnrolled, loadCourseForWrite } from "../lib/access";
+import { canManageCourse, canViewCourse, findCourse, isEnrolled, loadCourseForWrite } from "../lib/access";
 import type { AuthUser } from "../lib/auth";
 import {
   assertSafeUrl,
@@ -21,7 +21,7 @@ import {
   refreshCourseLessonCount,
   sanitizeLessonHtml,
 } from "../lib/content";
-import { badRequest, notFound, parseOr400, toIso } from "../lib/http";
+import { badRequest, forbidden, notFound, parseOr400, toIso } from "../lib/http";
 import { currentUser, requireRole } from "../middlewares/auth";
 import {
   CompleteLessonParams,
@@ -50,13 +50,10 @@ const router = Router();
 // ---------------------------------------------------------------------------
 // Quyền truy cập
 //  - Sửa: giảng viên phụ trách hoặc admin (canManageCourse)
-//  - Xem: admin/giảng viên; học viên khi khóa học đang mở hoặc đã ghi danh
+//  - Đề cương: ai xem được khóa học (canViewCourse — khóa riêng tư chỉ học viên đã ghi danh)
+//  - Nội dung bài học, hoàn thành bài, làm quiz: học viên phải đã ghi danh (tham gia / được duyệt / được mời)
 //  - Bài chưa xuất bản chỉ người được sửa mới thấy
 // ---------------------------------------------------------------------------
-async function canViewCourse(user: AuthUser, course: LmsCourse) {
-  if (user.role !== "student") return true;
-  return course.status === "Đang hoạt động" || (await isEnrolled(user.id, course.id));
-}
 
 async function loadCourseForView(user: AuthUser, courseId: number) {
   const course = await findCourse(courseId);
@@ -81,6 +78,9 @@ async function loadLessonForView(user: AuthUser, lessonId: number) {
   const lesson = await findLesson(lessonId);
   const { course, canEdit } = await loadCourseForView(user, lesson.courseId);
   if (!lesson.isPublished && !canEdit) throw notFound("Không tìm thấy bài học.");
+  if (user.role === "student" && !(await isEnrolled(user.id, course.id))) {
+    throw forbidden("Hãy tham gia khóa học để xem nội dung bài học.");
+  }
   return { lesson, course, canEdit };
 }
 

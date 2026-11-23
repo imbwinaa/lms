@@ -40,7 +40,8 @@ export function StudentDashboardView() {
   const [sort, setSort] = useState<'default' | 'progress' | 'title'>('default');
   const [rankingTab, setRankingTab] = useState<'class' | 'course'>('class');
 
-  const rawCourses = coursesQuery.data ?? [];
+  // Chỉ các khóa học đã tham gia
+  const rawCourses = useMemo(() => (coursesQuery.data ?? []).filter(c => c.myEnrollment === 'enrolled'), [coursesQuery.data]);
 
   // Lọc và sắp xếp danh sách môn học
   const courses = useMemo(() => {

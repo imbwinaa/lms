@@ -6,13 +6,14 @@ import {
   lmsBadgesTable,
   lmsCertificatesTable,
   lmsCoursesTable,
+  lmsEnrollmentRequestsTable,
   lmsEnrollmentsTable,
   lmsLearnersTable,
   lmsLearningPathsTable,
   lmsXapiEventsTable,
   type LmsCourse,
 } from "../db";
-import { findCourse, isEnrolled, loadCourseForWrite } from "../lib/access";
+import { canViewCourse, findCourse, isEnrolled, isListedForStudents, loadCourseForWrite } from "../lib/access";
 import { toPublicLearner } from "../lib/auth";
 import { assertSafeUrl } from "../lib/content";
 import { badRequest, conflict, forbidden, notFound, parseOr400 } from "../lib/http";
@@ -104,8 +105,9 @@ router.get("/lms/dashboard", async (_req, res) => {
 // KHÓA HỌC
 // ---------------------------------------------------------------------------
 type CourseRow = { course: LmsCourse; instructor: { name: string } | null };
+type MyEnrollment = "enrolled" | "pending" | "none";
 
-function formatCourse({ course, instructor }: CourseRow) {
+function formatCourse({ course, instructor }: CourseRow, myEnrollment: MyEnrollment = "none") {
   return {
     ...course,
     instructorId: course.instructorId ?? null,
@@ -113,7 +115,26 @@ function formatCourse({ course, instructor }: CourseRow) {
     mediaUrl: course.mediaUrl ?? null,
     mediaType: course.mediaType ?? null,
     coverImageUrl: course.coverImageUrl ?? null,
+    visibility: course.visibility === "private" ? ("private" as const) : ("public" as const),
+    enrollmentMethod: course.enrollmentMethod === "approval" ? ("approval" as const) : ("open" as const),
+    myEnrollment,
   };
+}
+
+/** Trạng thái ghi danh của một học viên trên mọi khóa học: đã ghi danh / đang chờ duyệt */
+async function studentEnrollmentState(learnerId: number) {
+  const enrolled = await db
+    .select({ courseId: lmsEnrollmentsTable.courseId })
+    .from(lmsEnrollmentsTable)
+    .where(eq(lmsEnrollmentsTable.learnerId, learnerId));
+  const pending = await db
+    .select({ courseId: lmsEnrollmentRequestsTable.courseId })
+    .from(lmsEnrollmentRequestsTable)
+    .where(and(eq(lmsEnrollmentRequestsTable.learnerId, learnerId), eq(lmsEnrollmentRequestsTable.status, "pending")));
+  const enrolledIds = new Set(enrolled.map((e) => e.courseId));
+  const pendingIds = new Set(pending.map((e) => e.courseId));
+  return (courseId: number): MyEnrollment =>
+    enrolledIds.has(courseId) ? "enrolled" : pendingIds.has(courseId) ? "pending" : "none";
 }
 
 function selectCourses() {
@@ -145,26 +166,27 @@ function isUniqueViolation(error: unknown): boolean {
 
 router.get("/lms/courses", async (req, res) => {
   const user = currentUser(req);
-  let rows = await selectCourses().orderBy(desc(lmsCoursesTable.id));
-  if (user.role === "student") {
-    const enrolled = await db
-      .select({ courseId: lmsEnrollmentsTable.courseId })
-      .from(lmsEnrollmentsTable)
-      .where(eq(lmsEnrollmentsTable.learnerId, user.id));
-    const enrolledIds = new Set(enrolled.map((e) => e.courseId));
-    rows = rows.filter((r) => r.course.status === "Đang hoạt động" || enrolledIds.has(r.course.id));
+  const rows = await selectCourses().orderBy(desc(lmsCoursesTable.id));
+  if (user.role !== "student") {
+    res.json(rows.map((row) => formatCourse(row)));
+    return;
   }
-  res.json(rows.map(formatCourse));
+  // Học viên: khóa công khai đang hoạt động + khóa đã ghi danh (kể cả riêng tư)
+  const stateOf = await studentEnrollmentState(user.id);
+  res.json(
+    rows
+      .filter((r) => isListedForStudents(r.course) || stateOf(r.course.id) === "enrolled")
+      .map((r) => formatCourse(r, stateOf(r.course.id))),
+  );
 });
 
 router.get("/lms/courses/:id", async (req, res) => {
   const user = currentUser(req);
   const { id } = parseOr400(GetLmsCourseParams, req.params);
-  const course = await getCourseResponse(id);
-  if (user.role === "student" && course.status !== "Đang hoạt động" && !(await isEnrolled(user.id, id))) {
-    throw notFound("Không tìm thấy khóa học.");
-  }
-  res.json(course);
+  const [row] = await selectCourses().where(eq(lmsCoursesTable.id, id)).limit(1);
+  if (!row || !(await canViewCourse(user, row.course))) throw notFound("Không tìm thấy khóa học.");
+  const myEnrollment = user.role === "student" ? (await studentEnrollmentState(user.id))(id) : "none";
+  res.json(formatCourse(row, myEnrollment));
 });
 
 router.post("/lms/courses", requireRole("lecturer", "admin"), async (req, res) => {

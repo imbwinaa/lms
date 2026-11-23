@@ -171,6 +171,14 @@ describe("lesson content", () => {
     expect(course.body.lessons).toBe(3);
   });
 
+  it("locks lesson content until the student joins the course", async () => {
+    expect((await api().get(`/api/lms/lessons/${quizLessonId}`).set(auth(student.token))).status).toBe(403);
+    expect((await api().post(`/api/lms/lessons/${textLessonId}/complete`).set(auth(student.token))).status).toBe(403);
+    const joined = await api().post(`/api/lms/courses/${courseId}/join`).set(auth(student.token)).send({});
+    expect(joined.status, JSON.stringify(joined.body)).toBe(200);
+    expect(joined.body.status).toBe("enrolled");
+  });
+
   it("never sends quiz answers to students", async () => {
     const res = await api().get(`/api/lms/lessons/${quizLessonId}`).set(auth(student.token));
     expect(res.status).toBe(200);
@@ -257,7 +265,7 @@ describe("student progress", () => {
     expect(passed.completion?.progress).toBe(33);
   });
 
-  it("completes the course, enrolls the student and issues a certificate", async () => {
+  it("completes the course and issues a certificate", async () => {
     await api().post(`/api/lms/lessons/${textLessonId}/complete`).set(auth(student.token)).expect(200);
     const last = await api().post(`/api/lms/lessons/${videoLessonId}/complete`).set(auth(student.token));
     expect(last.body).toMatchObject({ progress: 100, certificateIssued: true, pointsAwarded: 10 });

@@ -28,6 +28,8 @@ tags:
     description: Course sections, lessons, quizzes and learner progress
   - name: schedule
     description: Live class sessions (Teams / Google Meet / Zoom) of a course
+  - name: enrollment
+    description: Joining courses, approval requests and invite links
 security:
   - bearerAuth: []
 paths:
@@ -219,6 +221,154 @@ paths:
               schema: { $ref: "#/components/schemas/MessageResponse" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- ENROLLMENT (join, approval, invites)
+  /lms/courses/{id}/join:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    post:
+      operationId: joinCourse
+      tags: [enrollment]
+      summary: Join a public course (free to join) or ask to join (approval required)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JoinCourseInput" }
+      responses:
+        "200":
+          description: Enrollment state after the request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JoinCourseResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: cancelJoinRequest
+      tags: [enrollment]
+      summary: Withdraw the current student's pending join request
+      responses:
+        "200":
+          description: Request withdrawn
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JoinCourseResult" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/courses/{id}/enrollment-requests:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: listEnrollmentRequests
+      tags: [enrollment]
+      summary: Pending join requests of a course (instructor or admin)
+      responses:
+        "200":
+          description: Pending requests, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EnrollmentRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /lms/enrollment-requests/{id}/decision:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    post:
+      operationId: decideEnrollmentRequest
+      tags: [enrollment]
+      summary: Approve (enroll) or reject a join request (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EnrollmentDecisionInput" }
+      responses:
+        "200":
+          description: Updated request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnrollmentRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /lms/courses/{id}/invites:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    get:
+      operationId: listCourseInvites
+      tags: [enrollment]
+      summary: Invite links of a course (instructor or admin)
+      responses:
+        "200":
+          description: Invite links, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CourseInvite" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: createCourseInvite
+      tags: [enrollment]
+      summary: Create an invite link with optional expiry and maximum uses (instructor or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CourseInviteInput" }
+      responses:
+        "201":
+          description: Created invite
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseInvite" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /lms/invites/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdPath"
+    delete:
+      operationId: revokeCourseInvite
+      tags: [enrollment]
+      summary: Revoke an invite link (instructor or admin)
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageResponse" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /lms/invite-links/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string, minLength: 16, maxLength: 64 }
+    get:
+      operationId: getInviteLink
+      tags: [enrollment]
+      summary: Preview an invite link (signed-in user)
+      responses:
+        "200":
+          description: Invite preview
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitePreview" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: acceptInviteLink
+      tags: [enrollment]
+      summary: Join the course of an invite link (students)
+      responses:
+        "200":
+          description: Joined
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JoinCourseResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410": { $ref: "#/components/responses/BadRequest" }
 
   /lms/courses/{id}/learners:
     parameters:
@@ -1214,7 +1364,7 @@ components:
       enum: [video, audio, document, scorm]
     Course:
       type: object
-      required: [id, title, description, category, level, duration, lessons, enrolled, progress, status, format, accent, instructorId, instructorName, mediaUrl, mediaType, coverImageUrl]
+      required: [id, title, description, category, level, duration, lessons, enrolled, progress, status, format, accent, instructorId, instructorName, mediaUrl, mediaType, coverImageUrl, visibility, enrollmentMethod, myEnrollment]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -1233,6 +1383,9 @@ components:
         mediaUrl: { type: [string, "null"] }
         mediaType: { type: [string, "null"] }
         coverImageUrl: { type: [string, "null"], description: "16:9 cover used on cards and the course header" }
+        visibility: { $ref: "#/components/schemas/CourseVisibility" }
+        enrollmentMethod: { $ref: "#/components/schemas/EnrollmentMethod" }
+        myEnrollment: { $ref: "#/components/schemas/MyEnrollment" }
     CourseInput:
       type: object
       required: [title, description, category, level, duration, format]
@@ -1248,6 +1401,8 @@ components:
         mediaUrl: { type: [string, "null"] }
         mediaType: { $ref: "#/components/schemas/MediaType" }
         coverImageUrl: { type: [string, "null"] }
+        visibility: { $ref: "#/components/schemas/CourseVisibility" }
+        enrollmentMethod: { $ref: "#/components/schemas/EnrollmentMethod" }
     CourseUpdate:
       type: object
       properties:
@@ -1263,6 +1418,83 @@ components:
         mediaUrl: { type: [string, "null"] }
         mediaType: { $ref: "#/components/schemas/MediaType" }
         coverImageUrl: { type: [string, "null"] }
+        visibility: { $ref: "#/components/schemas/CourseVisibility" }
+        enrollmentMethod: { $ref: "#/components/schemas/EnrollmentMethod" }
+
+    # ------------------------------------------------ visibility & enrollment
+    CourseVisibility:
+      type: string
+      enum: [public, private]
+      description: "public: listed for every student; private: only enrolled students (invite-only)"
+    EnrollmentMethod:
+      type: string
+      enum: [open, approval]
+      description: "How students join a public course: open (instantly) or approval (instructor approves)"
+    MyEnrollment:
+      type: string
+      enum: [enrolled, pending, none]
+      description: "The current student's state in this course (staff: none)"
+    JoinCourseInput:
+      type: object
+      properties:
+        message: { type: string, maxLength: 500, description: "Optional note to the instructor (approval courses)" }
+    JoinCourseResult:
+      type: object
+      required: [courseId, status, message]
+      properties:
+        courseId: { type: integer }
+        status: { $ref: "#/components/schemas/MyEnrollment" }
+        message: { type: string }
+    EnrollmentRequestStatus:
+      type: string
+      enum: [pending, approved, rejected]
+    EnrollmentRequest:
+      type: object
+      required: [id, courseId, learnerId, learnerName, learnerEmail, learnerTeam, message, status, createdAt]
+      properties:
+        id: { type: integer }
+        courseId: { type: integer }
+        learnerId: { type: integer }
+        learnerName: { type: string }
+        learnerEmail: { type: string }
+        learnerTeam: { type: string }
+        message: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/EnrollmentRequestStatus" }
+        createdAt: { type: string, format: date-time }
+    EnrollmentDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approve, reject] }
+    CourseInvite:
+      type: object
+      required: [id, courseId, token, expiresAt, maxUses, uses, revoked, active, createdAt]
+      properties:
+        id: { type: integer }
+        courseId: { type: integer }
+        token: { type: string, description: "Share as <app>/invite/<token>" }
+        expiresAt: { type: [string, "null"], format: date-time }
+        maxUses: { type: [integer, "null"] }
+        uses: { type: integer }
+        revoked: { type: boolean }
+        active: { type: boolean, description: "Not revoked, not expired and not used up" }
+        createdAt: { type: string, format: date-time }
+    CourseInviteInput:
+      type: object
+      properties:
+        expiresAt: { type: [string, "null"], format: date-time, description: "Must be in the future; null = never" }
+        maxUses: { type: [integer, "null"], minimum: 1, maximum: 1000, description: "null = unlimited" }
+    InvitePreview:
+      type: object
+      required: [courseId, courseTitle, courseDescription, instructorName, valid, reason, alreadyEnrolled]
+      properties:
+        courseId: { type: integer }
+        courseTitle: { type: string }
+        courseDescription: { type: string }
+        instructorName: { type: string }
+        valid: { type: boolean }
+        reason: { type: [string, "null"], description: "Why the link can't be used" }
+        alreadyEnrolled: { type: boolean }
 
     # ------------------------------------------------ accounts
     AccountStatus:

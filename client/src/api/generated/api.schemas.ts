@@ -143,6 +143,40 @@ export const MediaType = {
   scorm: 'scorm',
 } as const;
 
+/**
+ * public: listed for every student; private: only enrolled students (invite-only)
+ */
+export type CourseVisibility = typeof CourseVisibility[keyof typeof CourseVisibility];
+
+
+export const CourseVisibility = {
+  public: 'public',
+  private: 'private',
+} as const;
+
+/**
+ * How students join a public course: open (instantly) or approval (instructor approves)
+ */
+export type EnrollmentMethod = typeof EnrollmentMethod[keyof typeof EnrollmentMethod];
+
+
+export const EnrollmentMethod = {
+  open: 'open',
+  approval: 'approval',
+} as const;
+
+/**
+ * The current student's state in this course (staff: none)
+ */
+export type MyEnrollment = typeof MyEnrollment[keyof typeof MyEnrollment];
+
+
+export const MyEnrollment = {
+  enrolled: 'enrolled',
+  pending: 'pending',
+  none: 'none',
+} as const;
+
 export interface Course {
   id: number;
   title: string;
@@ -169,6 +203,9 @@ export interface Course {
      * @nullable
      */
   coverImageUrl: string | null;
+  visibility: CourseVisibility;
+  enrollmentMethod: EnrollmentMethod;
+  myEnrollment: MyEnrollment;
 }
 
 export interface CourseInput {
@@ -188,6 +225,8 @@ export interface CourseInput {
   mediaType?: MediaType;
   /** @nullable */
   coverImageUrl?: string | null;
+  visibility?: CourseVisibility;
+  enrollmentMethod?: EnrollmentMethod;
 }
 
 export interface CourseUpdate {
@@ -208,6 +247,101 @@ export interface CourseUpdate {
   mediaType?: MediaType;
   /** @nullable */
   coverImageUrl?: string | null;
+  visibility?: CourseVisibility;
+  enrollmentMethod?: EnrollmentMethod;
+}
+
+export interface JoinCourseInput {
+  /**
+     * Optional note to the instructor (approval courses)
+     * @maxLength 500
+     */
+  message?: string;
+}
+
+export interface JoinCourseResult {
+  courseId: number;
+  status: MyEnrollment;
+  message: string;
+}
+
+export type EnrollmentRequestStatus = typeof EnrollmentRequestStatus[keyof typeof EnrollmentRequestStatus];
+
+
+export const EnrollmentRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface EnrollmentRequest {
+  id: number;
+  courseId: number;
+  learnerId: number;
+  learnerName: string;
+  learnerEmail: string;
+  learnerTeam: string;
+  /** @nullable */
+  message: string | null;
+  status: EnrollmentRequestStatus;
+  createdAt: string;
+}
+
+export type EnrollmentDecisionInputDecision = typeof EnrollmentDecisionInputDecision[keyof typeof EnrollmentDecisionInputDecision];
+
+
+export const EnrollmentDecisionInputDecision = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface EnrollmentDecisionInput {
+  decision: EnrollmentDecisionInputDecision;
+}
+
+export interface CourseInvite {
+  id: number;
+  courseId: number;
+  /** Share as <app>/invite/<token> */
+  token: string;
+  /** @nullable */
+  expiresAt: string | null;
+  /** @nullable */
+  maxUses: number | null;
+  uses: number;
+  revoked: boolean;
+  /** Not revoked, not expired and not used up */
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CourseInviteInput {
+  /**
+     * Must be in the future; null = never
+     * @nullable
+     */
+  expiresAt?: string | null;
+  /**
+     * null = unlimited
+     * @minimum 1
+     * @maximum 1000
+     * @nullable
+     */
+  maxUses?: number | null;
+}
+
+export interface InvitePreview {
+  courseId: number;
+  courseTitle: string;
+  courseDescription: string;
+  instructorName: string;
+  valid: boolean;
+  /**
+     * Why the link can't be used
+     * @nullable
+     */
+  reason: string | null;
+  alreadyEnrolled: boolean;
 }
 
 export type AccountStatus = typeof AccountStatus[keyof typeof AccountStatus];
