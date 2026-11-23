@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useRole } from '@/contexts/RoleContext';
+import { UpcomingSessionsWidget } from '@/components/schedule/UpcomingSessionsWidget';
 
 export function StudentDashboardView() {
   const { user } = useRole();
@@ -37,7 +38,6 @@ export function StudentDashboardView() {
   const [semester, setSemester] = useState('hk1');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<'default' | 'progress' | 'title'>('default');
-  const [scheduleView, setScheduleView] = useState<'calendar' | 'agenda'>('calendar');
   const [rankingTab, setRankingTab] = useState<'class' | 'course'>('class');
 
   const rawCourses = coursesQuery.data ?? [];
@@ -56,33 +56,6 @@ export function StudentDashboardView() {
     return list;
   }, [rawCourses, search, sort]);
 
-  // Mock events cho phần Lịch học
-  const scheduledEvents = [
-    {
-      id: 1,
-      title: 'Lớp học trực tuyến: Hội nhập cùng Nova',
-      course: 'Hội nhập cùng Nova',
-      time: '09:00 - 10:30',
-      date: 'Thứ Ba, 24/11',
-      type: 'online',
-    },
-    {
-      id: 2,
-      title: 'Hạn nộp bài tập: Phân tích tình huống an toàn',
-      course: 'Bảo mật thông tin thực hành',
-      time: 'Hạn chót 23:59',
-      date: 'Hôm nay, 21/11',
-      type: 'deadline',
-    },
-    {
-      id: 3,
-      title: 'Lớp thảo luận chuyên đề: Kỹ năng lãnh đạo',
-      course: 'Lãnh đạo đội ngũ linh hoạt',
-      time: '14:00 - 16:00',
-      date: 'Thứ Sáu, 27/11',
-      type: 'offline',
-    },
-  ];
 
   return (
     <div className="page-enter space-y-6">
@@ -328,169 +301,11 @@ export function StudentDashboardView() {
             RIGHT COLUMN (4 / 12 Cols): "Lịch học" + "Bảng xếp hạng"
            ======================================================== */}
         <div className="lg:col-span-5 xl:col-span-4 space-y-6">
-          {/* COMPONENT 1: "Lịch học" (Calendar / Agenda Component) */}
-          <Card className="overflow-hidden border-card-border shadow-2xs">
-            <CardContent className="p-4 space-y-4">
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-primary/10 text-primary">
-                    <CalendarIcon size={16} />
-                  </div>
-                  <div>
-                    <h3 className="font-display text-sm font-bold text-foreground">Lịch học</h3>
-                  </div>
-                </div>
-
-                {/* View Switcher Pills */}
-                <div className="flex items-center rounded-xl border border-border bg-muted/40 p-0.5 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => setScheduleView('calendar')}
-                    className={`rounded-lg px-2.5 py-1 font-semibold transition-colors cursor-pointer ${
-                      scheduleView === 'calendar'
-                        ? 'bg-background text-foreground shadow-2xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    Lịch biểu
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScheduleView('agenda')}
-                    className={`rounded-lg px-2.5 py-1 font-semibold transition-colors cursor-pointer ${
-                      scheduleView === 'agenda'
-                        ? 'bg-background text-foreground shadow-2xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    Agenda
-                  </button>
-                </div>
-              </div>
-
-              {/* Month Header */}
-              <div className="flex items-center justify-between text-xs font-semibold px-1">
-                <span className="font-display text-foreground">tháng 11 năm 2026</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:bg-muted"
-                  >
-                    <ChevronLeft size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    className="grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:bg-muted"
-                  >
-                    <ChevronRight size={13} />
-                  </button>
-                  <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary ml-1">
-                    Hôm nay
-                  </span>
-                </div>
-              </div>
-
-              {/* Calendar Grid */}
-              <div className="space-y-1">
-                {/* Weekday Labels */}
-                <div className="grid grid-cols-7 text-center text-[10px] font-bold uppercase text-muted-foreground/70">
-                  <span>CN</span>
-                  <span>T2</span>
-                  <span>T3</span>
-                  <span>T4</span>
-                  <span>T5</span>
-                  <span>T6</span>
-                  <span>T7</span>
-                </div>
-
-                {/* Sample Calendar Days (Row 1-4) */}
-                <div className="grid grid-cols-7 gap-1 text-center text-xs">
-                  <span className="p-1.5 text-muted-foreground/40 text-[11px]">1</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">2</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">3</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">4</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">5</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">6</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">7</span>
-
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">8</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">9</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">10</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">11</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">12</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">13</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">14</span>
-
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">15</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">16</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">17</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">18</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">19</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">20</span>
-                  {/* Today (21) */}
-                  <div className="relative rounded-lg bg-primary text-primary-foreground font-bold p-1 text-[11px] flex flex-col items-center">
-                    <span>21</span>
-                    <span className="h-1 w-1 rounded-full bg-white mt-0.5" />
-                  </div>
-
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">22</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">23</span>
-                  {/* Event on 24 (Online class) */}
-                  <div className="rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400 font-bold p-1 text-[11px] flex flex-col items-center">
-                    <span>24</span>
-                    <span className="h-1 w-1 rounded-full bg-blue-500 mt-0.5" />
-                  </div>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">25</span>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">26</span>
-                  {/* Event on 27 (Offline class) */}
-                  <div className="rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold p-1 text-[11px] flex flex-col items-center">
-                    <span>27</span>
-                    <span className="h-1 w-1 rounded-full bg-amber-500 mt-0.5" />
-                  </div>
-                  <span className="p-1.5 text-muted-foreground/70 text-[11px]">28</span>
-                </div>
-              </div>
-
-              {/* Upcoming Events List */}
-              <div className="space-y-2 pt-2 border-t border-border/50">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Nhiệm vụ & Lịch học sắp tới
-                </p>
-                {scheduledEvents.map(evt => (
-                  <div
-                    key={evt.id}
-                    className="p-2.5 rounded-xl border border-border/60 bg-muted/30 hover:bg-muted/60 transition-colors flex items-start gap-2.5"
-                  >
-                    <div
-                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-xs mt-0.5 ${
-                        evt.type === 'deadline'
-                          ? 'bg-rose-500/15 text-rose-600'
-                          : evt.type === 'online'
-                          ? 'bg-blue-500/15 text-blue-600'
-                          : 'bg-amber-500/15 text-amber-600'
-                      }`}
-                    >
-                      {evt.type === 'deadline' ? (
-                        <AlertCircle size={14} />
-                      ) : evt.type === 'online' ? (
-                        <Video size={14} />
-                      ) : (
-                        <GraduationCap size={14} />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-foreground line-clamp-1">{evt.title}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center justify-between">
-                        <span>{evt.course}</span>
-                        <span className="font-mono font-medium text-foreground">{evt.date} · {evt.time}</span>
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* COMPONENT 1: Lịch học trực tuyến sắp tới (dữ liệu thật từ các khóa đã ghi danh) */}
+          <UpcomingSessionsWidget
+            title="Lịch học sắp tới"
+            emptyText="Chưa có buổi học trực tuyến nào sắp tới trong các khóa học của bạn."
+          />
 
           {/* COMPONENT 2: "Bảng xếp hạng" (Ranking Component - Skeleton State as requested) */}
           <Card className="overflow-hidden border-card-border shadow-2xs">

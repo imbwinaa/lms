@@ -22,6 +22,8 @@ import {
   Flame,
   Award,
   PenSquare,
+  CalendarDays,
+  MoreHorizontal,
 } from 'lucide-react';
 import {
   getListLmsCoursesQueryKey,
@@ -43,6 +45,8 @@ import { MaterialsTab } from '@/components/learning/MaterialsTab';
 import { AssignmentsTab } from '@/components/learning/AssignmentsTab';
 import { CourseDialog, EnrollDialog } from '@/components/dialogs';
 import { useRole } from '@/contexts/RoleContext';
+import { ScheduleTab } from '@/components/schedule/ScheduleTab';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 const courseGradients: Record<string, string> = {
   teal: 'from-emerald-900/60 via-teal-900/40 to-slate-900',
@@ -59,7 +63,7 @@ export default function CourseDetail() {
 
   const coursesQuery = useListLmsCourses({ query: { queryKey: getListLmsCoursesQueryKey() } });
 
-  const [activeTab, setActiveTab] = useState<'syllabus' | 'materials' | 'assignments' | 'learners'>('syllabus');
+  const [activeTab, setActiveTab] = useState<'syllabus' | 'materials' | 'assignments' | 'schedule' | 'learners'>('syllabus');
   const [courseDialog, setCourseDialog] = useState(false);
   const [enrollDialog, setEnrollDialog] = useState(false);
 
@@ -125,6 +129,26 @@ export default function CourseDetail() {
       <Card className="overflow-hidden border-card-border shadow-sm">
         <div className={`relative p-6 sm:p-8 text-white ${course.coverImageUrl ? 'bg-slate-900' : `bg-gradient-to-r ${gradientClass}`}`}>
           {course.coverImageUrl && <CourseCover course={course} overlay className="!absolute inset-0" />}
+          {canManage && (
+            <div className="absolute right-3 top-3 z-20 sm:right-4 sm:top-4">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Tùy chọn khóa học"
+                    className="grid h-9 w-9 place-items-center rounded-full text-white/80 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  >
+                    <MoreHorizontal size={20} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onSelect={() => setCourseDialog(true)}>
+                    <Settings2 size={14} className="mr-2" /> Sửa môn
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
           <div className="relative z-10">
             {/* Badges strip */}
             <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -219,7 +243,9 @@ export default function CourseDetail() {
       <Tabs value={activeTab} onValueChange={v => setActiveTab(v as any)} className="space-y-6">
         {/* Hàng tab & nút thao tác: xuống dòng khi màn hình chưa đủ rộng để các nhãn không chồng lên nhau */}
         <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
-          <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl bg-muted/60 p-1 sm:h-11 sm:grid-cols-4 2xl:max-w-xl">
+          <TabsList
+            className={`grid h-auto w-full grid-cols-2 rounded-xl bg-muted/60 p-1 sm:h-11 ${canManage ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} 2xl:max-w-3xl`}
+          >
             <TabsTrigger value="syllabus" className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
               <BookOpen size={14} />
               Đề cương ({outlineLessons.filter(l => l.isPublished).length})
@@ -232,6 +258,10 @@ export default function CourseDetail() {
               <GraduationCap size={14} />
               Bài tập & Nộp bài
             </TabsTrigger>
+            <TabsTrigger value="schedule" className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+              <CalendarDays size={14} />
+              Lịch học
+            </TabsTrigger>
             {canManage && (
               <TabsTrigger value="learners" className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
                 <Users size={14} />
@@ -240,35 +270,15 @@ export default function CourseDetail() {
             )}
           </TabsList>
 
-          {/* Nút Vào bàn học trực tuyến & Các nút thao tác cùng hàng với Tabs */}
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {/* Nút thao tác căn phải: Soạn nội dung (người quản lý) & Vào bàn học trực tuyến */}
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 2xl:w-auto 2xl:shrink-0">
             {canManage && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-11 text-xs font-semibold rounded-xl cursor-pointer"
-                  onClick={() => setEnrollDialog(true)}
-                >
-                  <Users size={13} className="mr-1.5" />
-                  Ghi danh
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-11 text-xs font-semibold rounded-xl cursor-pointer"
-                  onClick={() => setCourseDialog(true)}
-                >
-                  <Settings2 size={13} className="mr-1.5" />
-                  Sửa môn
-                </Button>
-                <Button asChild size="sm" className="h-11 rounded-xl text-xs font-semibold">
-                  <Link href={`/courses/${course.id}/studio`}>
-                    <PenSquare size={13} className="mr-1.5" />
-                    Soạn nội dung
-                  </Link>
-                </Button>
-              </>
+              <Button asChild size="sm" className="h-11 rounded-xl text-xs font-semibold">
+                <Link href={`/courses/${course.id}/studio`}>
+                  <PenSquare size={13} className="mr-1.5" />
+                  Soạn nội dung
+                </Link>
+              </Button>
             )}
 
             <Link
@@ -426,7 +436,12 @@ export default function CourseDetail() {
           <AssignmentsTab courseId={Number(course.id)} />
         </TabsContent>
 
-        {/* TAB 4: Danh sách học viên */}
+        {/* TAB: Lịch học trực tuyến */}
+        <TabsContent value="schedule">
+          <ScheduleTab courseId={Number(course.id)} canManage={canManage} />
+        </TabsContent>
+
+        {/* TAB: Danh sách học viên */}
         <TabsContent value="learners" className="space-y-4">
           <div className="flex items-center justify-between">
             <div>

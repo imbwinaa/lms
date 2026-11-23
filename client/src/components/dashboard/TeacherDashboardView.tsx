@@ -43,13 +43,13 @@ import {
   CreateMaterialDialog,
   GradeSubmissionDialog,
 } from '@/components/dialogs';
+import { UpcomingSessionsWidget } from '@/components/schedule/UpcomingSessionsWidget';
 
 export function TeacherDashboardView() {
   const { user, canManageCourse } = useRole();
   const coursesQuery = useListLmsCourses({ query: { queryKey: getListLmsCoursesQueryKey() } });
 
   const [search, setSearch] = useState('');
-  const [scheduleView, setScheduleView] = useState<'calendar' | 'agenda'>('calendar');
 
   // Dialog states
   const [courseDialogOpen, setCourseDialogOpen] = useState(false);
@@ -81,36 +81,6 @@ export function TeacherDashboardView() {
   const allAssignments = assignmentsQuery.data ?? [];
   const pendingSubmissions = pendingQuery.data ?? [];
 
-  // Teacher Schedule
-  const teachingSchedule = [
-    {
-      id: 1,
-      title: 'Lớp học trực tuyến: Hội nhập cùng Nova (Buổi 2)',
-      course: 'Hội nhập cùng Nova',
-      time: '09:00 - 10:30',
-      date: 'Thứ Ba, 24/11',
-      type: 'online',
-      room: 'Phòng Zoom #01',
-    },
-    {
-      id: 2,
-      title: 'Hạn chót chấm bài tập: Phân tích tình huống an toàn',
-      course: 'Bảo mật thông tin thực hành',
-      time: 'Trước 23:59',
-      date: 'Hôm nay, 21/11',
-      type: 'deadline',
-      room: 'Hệ thống LMS',
-    },
-    {
-      id: 3,
-      title: 'Họp chuyên môn Tổ Sư Phạm & Rà soát đề cương',
-      course: 'Tổ Sư Phạm & Đào Tạo',
-      time: '14:00 - 15:30',
-      date: 'Thứ Sáu, 27/11',
-      type: 'offline',
-      room: 'Phòng họp BGH',
-    },
-  ];
 
   // Handler for grading a specific submission
   const handleOpenGradeDialog = (sub: Submission) => {
@@ -498,89 +468,11 @@ export function TeacherDashboardView() {
             - Nhật ký hoạt động nộp bài gần đây
            ======================================================== */}
         <div className="lg:col-span-5 xl:col-span-4 space-y-6">
-          {/* COMPONENT 1: Lịch giảng dạy & Hạn nộp bài */}
-          <Card className="overflow-hidden border-card-border shadow-2xs">
-            <CardContent className="p-4 space-y-4">
-              <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400">
-                    <CalendarIcon size={16} />
-                  </div>
-                  <div>
-                    <h3 className="font-display text-sm font-bold text-foreground">Lịch giảng dạy</h3>
-                  </div>
-                </div>
-
-                <div className="flex items-center rounded-xl border border-border bg-muted/40 p-0.5 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => setScheduleView('calendar')}
-                    className={`rounded-lg px-2.5 py-1 font-semibold transition-colors cursor-pointer ${
-                      scheduleView === 'calendar'
-                        ? 'bg-background text-foreground shadow-2xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    Lịch biểu
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScheduleView('agenda')}
-                    className={`rounded-lg px-2.5 py-1 font-semibold transition-colors cursor-pointer ${
-                      scheduleView === 'agenda'
-                        ? 'bg-background text-foreground shadow-2xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    Agenda
-                  </button>
-                </div>
-              </div>
-
-              {/* Month Header */}
-              <div className="flex items-center justify-between text-xs font-semibold px-1">
-                <span className="font-display text-foreground">tháng 11 năm 2026</span>
-                <span className="rounded-lg bg-blue-500/15 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400">
-                  Hôm nay: 21/11
-                </span>
-              </div>
-
-              {/* Teaching Schedule List */}
-              <div className="space-y-2 pt-1">
-                {teachingSchedule.map(item => (
-                  <div
-                    key={item.id}
-                    className="p-3 rounded-xl border border-border/60 bg-muted/30 hover:bg-muted/60 transition-colors flex items-start gap-2.5"
-                  >
-                    <div
-                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-xs mt-0.5 ${
-                        item.type === 'deadline'
-                          ? 'bg-rose-500/15 text-rose-600'
-                          : item.type === 'online'
-                          ? 'bg-blue-500/15 text-blue-600'
-                          : 'bg-amber-500/15 text-amber-600'
-                      }`}
-                    >
-                      {item.type === 'deadline' ? (
-                        <AlertCircle size={14} />
-                      ) : item.type === 'online' ? (
-                        <Video size={14} />
-                      ) : (
-                        <GraduationCap size={14} />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-foreground line-clamp-1">{item.title}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center justify-between">
-                        <span>{item.room}</span>
-                        <span className="font-mono font-medium text-foreground">{item.date} · {item.time}</span>
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* COMPONENT 1: Lịch dạy trực tuyến sắp tới (các khóa học phụ trách) */}
+          <UpcomingSessionsWidget
+            title="Lịch dạy sắp tới"
+            emptyText="Chưa có buổi dạy nào sắp tới. Thêm lịch trong tab Lịch học của khóa học."
+          />
 
           {/* COMPONENT 2: Hoạt động học viên gần đây (Feed) */}
           <Card className="overflow-hidden border-card-border shadow-2xs">
