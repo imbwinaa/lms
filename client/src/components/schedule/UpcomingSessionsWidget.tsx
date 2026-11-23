@@ -58,6 +58,10 @@ export function UpcomingSessionsWidget({ title, emptyText }: { title: string; em
         <div className="space-y-2 border-t border-border/50 pt-3">
           {query.isLoading ? (
             <p className="text-xs text-muted-foreground">Đang tải lịch học…</p>
+          ) : query.isError ? (
+            <p className="rounded-xl bg-destructive/10 px-3 py-4 text-center text-xs text-destructive">
+              Chưa tải được lịch học. Vui lòng thử lại sau.
+            </p>
           ) : sessions.length === 0 ? (
             <p className="rounded-xl bg-muted/40 px-3 py-4 text-center text-xs text-muted-foreground">{emptyText}</p>
           ) : (

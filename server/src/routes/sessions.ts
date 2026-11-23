@@ -101,6 +101,12 @@ function selectSessions() {
 
 /** Thời điểm kết thúc của buổi học (tính trong SQL) */
 const endsAtSql = sql`(${lmsClassSessionsTable.startsAt} + ${lmsClassSessionsTable.durationMinutes} * interval '1 minute')`;
+/**
+ * "Buổi học chưa kết thúc tính tới thời điểm `at`".
+ * Truyền chuỗi ISO + ép kiểu timestamptz: driver `postgres` (Supabase) không nhận
+ * đối tượng Date trong mẫu sql thô (PGlite thì nhận, nên kiểm thử không bắt được).
+ */
+const endsAfter = (at: Date) => sql`${endsAtSql} >= ${at.toISOString()}::timestamptz`;
 
 async function findSession(id: number): Promise<LmsClassSession> {
   const [session] = await db.select().from(lmsClassSessionsTable).where(eq(lmsClassSessionsTable.id, id)).limit(1);
@@ -126,7 +132,7 @@ router.get("/lms/courses/:id/sessions", async (req, res) => {
   if (!(await canViewCourse(user, course))) throw notFound("Không tìm thấy khóa học.");
 
   const conditions: SQL[] = [eq(lmsClassSessionsTable.courseId, id)];
-  if (from) conditions.push(sql`${endsAtSql} >= ${new Date(from)}`);
+  if (from) conditions.push(endsAfter(new Date(from)));
   if (to) conditions.push(lt(lmsClassSessionsTable.startsAt, new Date(to)));
 
   const rows = await selectSessions()
@@ -197,7 +203,7 @@ router.get("/lms/sessions/upcoming", async (req, res) => {
     return;
   }
 
-  const conditions: SQL[] = [sql`${endsAtSql} >= ${new Date()}`];
+  const conditions: SQL[] = [endsAfter(new Date())];
   if (courseIds !== "all") conditions.push(inArray(lmsClassSessionsTable.courseId, courseIds));
   const rows = await selectSessions()
     .where(and(...conditions))
