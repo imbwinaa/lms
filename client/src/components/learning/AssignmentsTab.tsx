@@ -33,6 +33,7 @@ import { CreateAssignmentDialog } from '@/components/dialogs/CreateAssignmentDia
 import { SubmitAssignmentDialog } from '@/components/dialogs/SubmitAssignmentDialog';
 import { GradeSubmissionDialog } from '@/components/dialogs/GradeSubmissionDialog';
 import { useRole } from '@/contexts/RoleContext';
+import { PreviewLink } from '@/components/preview/FilePreviewDialog';
 
 export interface AssignmentsTabProps {
   courseId: number;
@@ -198,9 +199,9 @@ function AssignmentCard({
             <div className="mt-2.5 flex items-center gap-2 text-primary font-semibold">
               <FileText size={14} />
               <span>Tệp đề bài đính kèm: </span>
-              <a href={asg.attachmentUrl} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
+              <PreviewLink url={asg.attachmentUrl} name={asg.attachmentName} className="underline hover:opacity-80">
                 {asg.attachmentName}
-              </a>
+              </PreviewLink>
             </div>
           )}
         </div>
@@ -237,9 +238,9 @@ function AssignmentCard({
                   <div className="flex items-center gap-2 text-xs font-medium text-foreground bg-muted/50 p-2.5 rounded-lg">
                     <FileText size={15} className="text-primary" />
                     {studentSub.fileUrl ? (
-                      <a href={studentSub.fileUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                      <PreviewLink url={studentSub.fileUrl} name={studentSub.fileName} className="hover:underline">
                         {studentSub.fileName}
-                      </a>
+                      </PreviewLink>
                     ) : (
                       <span>{studentSub.fileName}</span>
                     )}

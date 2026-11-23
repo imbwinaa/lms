@@ -1,11 +1,12 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const accountId = process.env.R2_ACCOUNT_ID || "";
 const accessKeyId = process.env.R2_ACCESS_KEY_ID || "";
 const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || "";
 const bucketName = process.env.R2_BUCKET_NAME || "lms-media";
 const rawPublicUrl = (process.env.R2_PUBLIC_URL || "").trim().replace(/\/+$/, "");
+
+export const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
 
 export const isR2Configured = Boolean(accountId && accessKeyId && secretAccessKey && bucketName);
 
@@ -41,25 +42,17 @@ export async function uploadFileToR2(
       Key: uniqueKey,
       Body: buffer,
       ContentType: contentType,
+      // Khóa luôn duy nhất (timestamp) -> nội dung tại một URL không bao giờ đổi: cache vĩnh viễn
+      CacheControl: IMMUTABLE_CACHE,
     })
   );
 
-  let fileUrl = "";
-  // Nếu có custom domain hoặc r2.dev public subdomain
-  if (rawPublicUrl && (rawPublicUrl.includes(".r2.dev") || !rawPublicUrl.includes(".r2.cloudflarestorage.com"))) {
-    fileUrl = `${rawPublicUrl}/${uniqueKey}`;
-  } else {
-    // Tạo presigned GET URL (hiệu lực 7 ngày = 604800 giây)
-    try {
-      const getCommand = new GetObjectCommand({
-        Bucket: bucketName,
-        Key: uniqueKey,
-      });
-      fileUrl = await getSignedUrl(r2Client, getCommand, { expiresIn: 604800 });
-    } catch {
-      fileUrl = `/api/upload/r2/${uniqueKey}`;
-    }
-  }
+  // Có custom domain / r2.dev công khai: trình duyệt tải thẳng từ Cloudflare (không tốn băng thông máy chủ).
+  // Không có: đi qua proxy /api/upload/r2/:key — URL cố định (presigned URL hết hạn sau 7 ngày
+  // nên không thể lưu vào cơ sở dữ liệu, và chữ ký thay đổi cũng làm mất cache).
+  const isPublicBase =
+    rawPublicUrl && (rawPublicUrl.includes(".r2.dev") || !rawPublicUrl.includes(".r2.cloudflarestorage.com"));
+  const fileUrl = isPublicBase ? `${rawPublicUrl}/${uniqueKey}` : `/api/upload/r2/${uniqueKey}`;
 
   return { url: fileUrl, key: uniqueKey };
 }
@@ -67,11 +60,13 @@ export async function uploadFileToR2(
 /**
  * Lấy luồng dữ liệu tệp từ R2 (dùng cho streaming proxy)
  */
-export async function getR2ObjectStream(key: string) {
+export async function getR2ObjectStream(key: string, range?: string) {
   if (!r2Client) throw new Error("R2 chưa được cấu hình.");
+  // Range: cho phép tua video/audio và chỉ tải đoạn cần thiết
   const command = new GetObjectCommand({
     Bucket: bucketName,
     Key: key,
+    Range: range,
   });
   return await r2Client.send(command);
 }

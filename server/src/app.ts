@@ -62,7 +62,18 @@ app.use("/api", router);
  */
 const clientDist = path.resolve(process.env.CLIENT_DIST || path.join(process.cwd(), "..", "client", "dist"));
 if (fs.existsSync(path.join(clientDist, "index.html"))) {
-  app.use(express.static(clientDist, { index: false, maxAge: "1h" }));
+  app.use(
+    express.static(clientDist, {
+      index: false,
+      maxAge: "1h",
+      setHeaders: (res, filePath) => {
+        // Vite gắn mã băm nội dung vào tên tệp trong assets/ -> đổi nội dung là đổi tên: cache 1 năm
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      },
+    }),
+  );
   // Mọi route còn lại của SPA (/, /courses/1, /login...) trả về index.html
   app.get(/^(?!\/(api|uploads)\/).*/, (_req, res) => {
     res.setHeader("Cache-Control", "no-cache");

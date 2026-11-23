@@ -78,6 +78,7 @@ import type {
   LessonCompletionResult,
   LessonInput,
   LessonUpdate,
+  ListCalendarSessionsParams,
   ListCourseSessionsParams,
   ListMySubmissionsParams,
   ListUpcomingSessionsParams,
@@ -4507,6 +4508,127 @@ export function useListUpcomingSessions<TData = Awaited<ReturnType<typeof listUp
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListUpcomingSessionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListCalendarSessionsUrl = (params: ListCalendarSessionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/lms/sessions/calendar?${stringifiedParams}` : `/api/lms/sessions/calendar`
+}
+
+/**
+ * Same course scope as /lms/sessions/upcoming. The range may span at most 190 days.
+ * @summary Sessions across the current user's courses that overlap a time range (dashboard calendar)
+ */
+export const listCalendarSessions = async (params: ListCalendarSessionsParams, options?: Parameters<typeof customFetch>[1]): Promise<ClassSession[]> => {
+
+  return customFetch<ClassSession[]>(getListCalendarSessionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCalendarSessionsQueryKey = (params?: ListCalendarSessionsParams,) => {
+    return [
+    `/api/lms/sessions/calendar`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCalendarSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listCalendarSessions>>, TError = ErrorType<BadRequestResponse>>(params: ListCalendarSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCalendarSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCalendarSessionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCalendarSessions>>> = ({ signal }) => listCalendarSessions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCalendarSessions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListCalendarSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listCalendarSessions>>>
+export type ListCalendarSessionsQueryError = ErrorType<BadRequestResponse>
+
+
+/**
+ * Same course scope as /lms/sessions/upcoming. The range may span at most 190 days.
+ * @summary Sessions across the current user's courses that overlap a time range (dashboard calendar)
+ */
+export function useListCalendarSessions<TData = Awaited<ReturnType<typeof listCalendarSessions>>, TError = ErrorType<BadRequestResponse>>(
+ params: ListCalendarSessionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCalendarSessions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCalendarSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listCalendarSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * Same course scope as /lms/sessions/upcoming. The range may span at most 190 days.
+ * @summary Sessions across the current user's courses that overlap a time range (dashboard calendar)
+ */
+export function useListCalendarSessions<TData = Awaited<ReturnType<typeof listCalendarSessions>>, TError = ErrorType<BadRequestResponse>>(
+ params: ListCalendarSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCalendarSessions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCalendarSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listCalendarSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * Same course scope as /lms/sessions/upcoming. The range may span at most 190 days.
+ * @summary Sessions across the current user's courses that overlap a time range (dashboard calendar)
+ */
+export function useListCalendarSessions<TData = Awaited<ReturnType<typeof listCalendarSessions>>, TError = ErrorType<BadRequestResponse>>(
+ params: ListCalendarSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCalendarSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * Same course scope as /lms/sessions/upcoming. The range may span at most 190 days.
+ * @summary Sessions across the current user's courses that overlap a time range (dashboard calendar)
+ */
+export function useListCalendarSessions<TData = Awaited<ReturnType<typeof listCalendarSessions>>, TError = ErrorType<BadRequestResponse>>(
+ params: ListCalendarSessionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCalendarSessions>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListCalendarSessionsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

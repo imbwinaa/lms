@@ -199,6 +199,33 @@ describe("upcoming sessions for dashboards", () => {
   });
 });
 
+describe("calendar range for dashboards", () => {
+  const range = (fromMs: number, toMs: number) => ({
+    from: new Date(Date.now() + fromMs).toISOString(),
+    to: new Date(Date.now() + toMs).toISOString(),
+  });
+
+  it("returns past and future sessions that overlap the range, own courses only", async () => {
+    const res = await api().get("/api/lms/sessions/calendar").query(range(-60 * DAY, 60 * DAY)).set(auth(enrolled.token));
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    const titles = (res.body as { title: string }[]).map((s) => s.title);
+    expect(titles).toContain("Đã xong"); // buổi đã qua vẫn hiện khi xem lại ngày cũ
+    expect(titles).toContain("Đang học");
+    const narrow = await api().get("/api/lms/sessions/calendar").query(range(-HOUR, HOUR)).set(auth(enrolled.token));
+    expect((narrow.body as { title: string }[]).map((s) => s.title)).toEqual(["Đang học"]);
+
+    const outsiderRes = await api().get("/api/lms/sessions/calendar").query(range(-60 * DAY, 60 * DAY)).set(auth(outsider.token));
+    expect(outsiderRes.body).toEqual([]);
+  });
+
+  it("validates the range", async () => {
+    const get = (q: object) => api().get("/api/lms/sessions/calendar").query(q).set(auth(enrolled.token));
+    expect((await get({})).status).toBe(400);
+    expect((await get(range(DAY, -DAY))).status).toBe(400);
+    expect((await get(range(-200 * DAY, 0))).status).toBe(400);
+  });
+});
+
 describe("editing and cancelling", () => {
   it("edits one session, only by the instructor", async () => {
     const [session] = (await api().get(`/api/lms/courses/${courseId}/sessions`).set(auth(owner.token))).body;
