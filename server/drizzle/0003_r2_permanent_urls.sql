@@ -1,0 +1,18 @@
+-- Đổi presigned URL của Cloudflare R2 (hết hạn sau 7 ngày) thành URL proxy cố định /api/upload/r2/<key>.
+-- Hai dạng URL: virtual-hosted (<bucket>.<account>.r2.cloudflarestorage.com/<key>)
+-- và path-style (<account>.r2.cloudflarestorage.com/<bucket>/<key>). Chạy lại không đổi gì (idempotent).
+UPDATE "lms_courses" SET "media_url" = regexp_replace(regexp_replace("media_url", 'https?://[A-Za-z0-9.-]+\.[a-f0-9]{32}\.r2\.cloudflarestorage\.com/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g'), 'https?://[a-f0-9]{32}\.r2\.cloudflarestorage\.com/[^/?"''\s<>]+/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g') WHERE "media_url" LIKE '%.r2.cloudflarestorage.com/%';
+--> statement-breakpoint
+UPDATE "lms_courses" SET "cover_image_url" = regexp_replace(regexp_replace("cover_image_url", 'https?://[A-Za-z0-9.-]+\.[a-f0-9]{32}\.r2\.cloudflarestorage\.com/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g'), 'https?://[a-f0-9]{32}\.r2\.cloudflarestorage\.com/[^/?"''\s<>]+/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g') WHERE "cover_image_url" LIKE '%.r2.cloudflarestorage.com/%';
+--> statement-breakpoint
+UPDATE "lms_materials" SET "file_url" = regexp_replace(regexp_replace("file_url", 'https?://[A-Za-z0-9.-]+\.[a-f0-9]{32}\.r2\.cloudflarestorage\.com/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g'), 'https?://[a-f0-9]{32}\.r2\.cloudflarestorage\.com/[^/?"''\s<>]+/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g') WHERE "file_url" LIKE '%.r2.cloudflarestorage.com/%';
+--> statement-breakpoint
+UPDATE "lms_assignments" SET "attachment_url" = regexp_replace(regexp_replace("attachment_url", 'https?://[A-Za-z0-9.-]+\.[a-f0-9]{32}\.r2\.cloudflarestorage\.com/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g'), 'https?://[a-f0-9]{32}\.r2\.cloudflarestorage\.com/[^/?"''\s<>]+/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g') WHERE "attachment_url" LIKE '%.r2.cloudflarestorage.com/%';
+--> statement-breakpoint
+UPDATE "lms_submissions" SET "file_url" = regexp_replace(regexp_replace("file_url", 'https?://[A-Za-z0-9.-]+\.[a-f0-9]{32}\.r2\.cloudflarestorage\.com/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g'), 'https?://[a-f0-9]{32}\.r2\.cloudflarestorage\.com/[^/?"''\s<>]+/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g') WHERE "file_url" LIKE '%.r2.cloudflarestorage.com/%';
+--> statement-breakpoint
+UPDATE "lms_submissions" SET "text_content" = regexp_replace(regexp_replace("text_content", 'https?://[A-Za-z0-9.-]+\.[a-f0-9]{32}\.r2\.cloudflarestorage\.com/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g'), 'https?://[a-f0-9]{32}\.r2\.cloudflarestorage\.com/[^/?"''\s<>]+/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g') WHERE "text_content" LIKE '%.r2.cloudflarestorage.com/%';
+--> statement-breakpoint
+UPDATE "lms_lessons" SET "media_url" = regexp_replace(regexp_replace("media_url", 'https?://[A-Za-z0-9.-]+\.[a-f0-9]{32}\.r2\.cloudflarestorage\.com/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g'), 'https?://[a-f0-9]{32}\.r2\.cloudflarestorage\.com/[^/?"''\s<>]+/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g') WHERE "media_url" LIKE '%.r2.cloudflarestorage.com/%';
+--> statement-breakpoint
+UPDATE "lms_lessons" SET "content_html" = regexp_replace(regexp_replace("content_html", 'https?://[A-Za-z0-9.-]+\.[a-f0-9]{32}\.r2\.cloudflarestorage\.com/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g'), 'https?://[a-f0-9]{32}\.r2\.cloudflarestorage\.com/[^/?"''\s<>]+/([^?"''\s<>]+)(\?[^"''\s<>]*)?', '/api/upload/r2/\1', 'g') WHERE "content_html" LIKE '%.r2.cloudflarestorage.com/%';
